@@ -1,0 +1,103 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper functions ──
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return request.auth.uid == uid;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isShopMember(shopId) {
+      return isAuthenticated() && getUserData().shopId == shopId;
+    }
+
+    function isShopAdmin(shopId) {
+      return isShopMember(shopId) && getUserData().role == 'admin';
+    }
+
+    function isShopAdminOrManager(shopId) {
+      return isShopMember(shopId) && (getUserData().role == 'admin' || getUserData().role == 'manager');
+    }
+
+    // ── Users Collection ──
+    match /users/{userId} {
+      allow read: if isAuthenticated() && isOwner(userId);
+      allow create: if isAuthenticated() && isOwner(userId);
+      allow update: if isAuthenticated() && isOwner(userId);
+      allow delete: if false; // Users cannot be deleted from client
+    }
+
+    // ── Shops Collection ──
+    match /shops/{shopId} {
+      allow read: if isShopMember(shopId);
+      allow create: if isAuthenticated();
+      allow update: if isShopAdmin(shopId);
+      allow delete: if false;
+
+      // ── Products ──
+      match /products/{productId} {
+        allow read: if isShopMember(shopId);
+        allow create: if isShopMember(shopId) && getUserData().role in ['admin', 'manager', 'warehouse'];
+        allow update: if isShopMember(shopId) && getUserData().role in ['admin', 'manager', 'warehouse'];
+        allow delete: if isShopAdminOrManager(shopId);
+      }
+
+      // ── Categories ──
+      match /categories/{categoryId} {
+        allow read: if isShopMember(shopId);
+        allow create, update: if isShopAdminOrManager(shopId);
+        allow delete: if isShopAdmin(shopId);
+      }
+
+      // ── Transactions ──
+      match /transactions/{transactionId} {
+        allow read: if isShopMember(shopId);
+        allow create: if isShopMember(shopId); // All roles can sell
+        allow update: if isShopAdminOrManager(shopId);
+        allow delete: if false; // Transactions are immutable
+      }
+
+      // ── Stock Movements ──
+      match /stock_movements/{movementId} {
+        allow read: if isShopMember(shopId);
+        allow create: if isShopMember(shopId);
+        allow update, delete: if false; // Audit trail: immutable
+      }
+
+      // ── Scan History ──
+      match /scan_history/{scanId} {
+        allow read: if isShopMember(shopId);
+        allow create: if isShopMember(shopId);
+        allow update, delete: if false;
+      }
+
+      // ── Notifications ──
+      match /notifications/{notificationId} {
+        allow read: if isShopMember(shopId);
+        allow create: if isShopAdminOrManager(shopId);
+        allow update: if isShopMember(shopId); // Mark as read
+        allow delete: if isShopAdmin(shopId);
+      }
+
+      // ── Analytics Snapshots ──
+      match /analytics_snapshots/{snapshotId} {
+        allow read: if isShopMember(shopId) && getUserData().role in ['admin', 'manager'];
+        allow write: if false; // Written by Cloud Functions only
+      }
+
+      // ── Settings ──
+      match /settings/{docId} {
+        allow read: if isShopMember(shopId);
+        allow write: if isShopAdmin(shopId);
+      }
+    }
+  }
+}
