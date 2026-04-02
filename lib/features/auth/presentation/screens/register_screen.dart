@@ -101,7 +101,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       ),
                       const SizedBox(height: AppSizes.xs),
                       Text(
-                        'Join ShopManager',
+                        'Join Inventra',
                         style: AppTypography.bodyMedium.copyWith(
                           color: AppColors.textSecondary,
                         ),
