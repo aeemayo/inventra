@@ -211,7 +211,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                 // ── Footer ──
                 Text(
-                  'Inventra © 2024 | ShopManager Pro',
+                  'Inventra © 2026 | ShopManager Pro',
                   style: AppTypography.bodySmall.copyWith(
                     color: AppColors.textTertiary,
                   ),

@@ -1,4 +1,5 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -31,6 +32,20 @@ Future<void> bootstrap() async {
   } else {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
+    );
+
+    const debugAppCheckToken = String.fromEnvironment(
+      'FIREBASE_APP_CHECK_DEBUG_TOKEN',
+      defaultValue: '',
+    );
+
+    // App Check must be active before auth/database calls.
+    await FirebaseAppCheck.instance.activate(
+      providerAndroid: kDebugMode
+          ? (debugAppCheckToken.isEmpty
+              ? const AndroidDebugProvider()
+              : const AndroidDebugProvider(debugToken: debugAppCheckToken))
+          : const AndroidPlayIntegrityProvider(),
     );
   }
 

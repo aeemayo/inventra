@@ -17,19 +17,44 @@ class AuthFailure extends Failure {
   factory AuthFailure.fromCode(String code) {
     switch (code) {
       case 'user-not-found':
-        return const AuthFailure(message: 'No user found with this email.', code: 'user-not-found');
+        return const AuthFailure(
+            message: 'No user found with this email.', code: 'user-not-found');
       case 'wrong-password':
-        return const AuthFailure(message: 'Incorrect password.', code: 'wrong-password');
+        return const AuthFailure(
+            message: 'Incorrect password.', code: 'wrong-password');
       case 'email-already-in-use':
-        return const AuthFailure(message: 'An account already exists with this email.', code: 'email-already-in-use');
+        return const AuthFailure(
+            message: 'An account already exists with this email.',
+            code: 'email-already-in-use');
       case 'weak-password':
-        return const AuthFailure(message: 'Password is too weak.', code: 'weak-password');
+        return const AuthFailure(
+            message: 'Password is too weak.', code: 'weak-password');
       case 'invalid-email':
-        return const AuthFailure(message: 'Invalid email address.', code: 'invalid-email');
+        return const AuthFailure(
+            message: 'Invalid email address.', code: 'invalid-email');
       case 'too-many-requests':
-        return const AuthFailure(message: 'Too many attempts. Please try again later.', code: 'too-many-requests');
+        return const AuthFailure(
+            message: 'Too many attempts. Please try again later.',
+            code: 'too-many-requests');
       case 'invalid-credential':
-        return const AuthFailure(message: 'Invalid email or password.', code: 'invalid-credential');
+        return const AuthFailure(
+            message: 'Invalid email or password.', code: 'invalid-credential');
+      case 'captcha-check-failed':
+        return const AuthFailure(
+            message: 'Security verification failed. Please try again.',
+            code: 'captcha-check-failed');
+      case 'app-not-authorized':
+        return const AuthFailure(
+          message:
+              'This app is not authorized for Firebase Authentication in this project.',
+          code: 'app-not-authorized',
+        );
+      case 'operation-not-allowed':
+        return const AuthFailure(
+          message:
+              'Email/password sign-up is currently disabled. Please contact support.',
+          code: 'operation-not-allowed',
+        );
       default:
         return AuthFailure(message: 'Authentication error: $code', code: code);
     }
@@ -45,7 +70,9 @@ class CacheFailure extends Failure {
 }
 
 class NetworkFailure extends Failure {
-  const NetworkFailure({super.message = 'No internet connection. Please check your network.', super.code});
+  const NetworkFailure(
+      {super.message = 'No internet connection. Please check your network.',
+      super.code});
 }
 
 class ValidationFailure extends Failure {
