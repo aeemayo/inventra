@@ -65,7 +65,7 @@ class AuthRepositoryImpl implements AuthRepository {
     required String email,
     required String password,
     required String displayName,
-    required String phone,
+    required String shopName,
     required UserRole role,
   }) async {
     try {
@@ -82,7 +82,7 @@ class AuthRepositoryImpl implements AuthRepository {
         email: email.trim(),
         displayName: displayName.trim(),
         role: role.name,
-        phone: phone.trim(),
+        shopName: shopName.trim(),
         createdAt: now,
         updatedAt: now,
       );

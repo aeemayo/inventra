@@ -9,7 +9,7 @@ class UserModel {
   final String? photoUrl;
   final String? shopId;
   final String role;
-  final String? phone;
+  final String? shopName;
   final String? fcmToken;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -21,7 +21,7 @@ class UserModel {
     this.photoUrl,
     this.shopId,
     required this.role,
-    this.phone,
+    this.shopName,
     this.fcmToken,
     required this.createdAt,
     required this.updatedAt,
@@ -36,7 +36,7 @@ class UserModel {
       photoUrl: data['photoUrl'] as String?,
       shopId: data['shopId'] as String?,
       role: data['role'] as String? ?? 'sales',
-      phone: data['phone'] as String?,
+      shopName: data['shopName'] as String?,
       fcmToken: data['fcmToken'] as String?,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -51,7 +51,7 @@ class UserModel {
       'photoUrl': photoUrl,
       'shopId': shopId,
       'role': role,
-      'phone': phone,
+      'shopName': shopName,
       'fcmToken': fcmToken,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
@@ -65,6 +65,7 @@ class UserModel {
       displayName: displayName,
       photoUrl: photoUrl,
       shopId: shopId,
+      shopName: shopName,
       role: _parseRole(role),
       fcmToken: fcmToken,
       createdAt: createdAt,
@@ -87,7 +88,7 @@ class UserModel {
     }
   }
 
-  static UserModel fromEntity(AppUser user, {String? phone}) {
+  static UserModel fromEntity(AppUser user, {String? shopName}) {
     return UserModel(
       uid: user.uid,
       email: user.email,
@@ -95,7 +96,7 @@ class UserModel {
       photoUrl: user.photoUrl,
       shopId: user.shopId,
       role: user.role.name,
-      phone: phone,
+      shopName: shopName ?? user.shopName,
       fcmToken: user.fcmToken,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,

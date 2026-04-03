@@ -42,10 +42,10 @@ class DashboardScreen extends ConsumerWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('My Shop', style: AppTypography.h2),
+                      Text(user?.shopName?.isNotEmpty == true ? user!.shopName! : 'My Shop', style: AppTypography.h2),
                       const SizedBox(height: 2),
                       Text(
-                        'Welcome back, ${user?.displayName ?? 'User'}',
+                        'Welcome back, ${user?.displayName.isNotEmpty == true ? user!.displayName : 'User'}',
                         style: AppTypography.bodyMedium
                             .copyWith(color: AppColors.textSecondary),
                       ),
@@ -58,7 +58,7 @@ class DashboardScreen extends ConsumerWidget {
                       radius: 22,
                       backgroundColor: AppColors.primarySurface,
                       child: Text(
-                        (user?.displayName ?? 'U')[0].toUpperCase(),
+                        (user?.displayName.isNotEmpty == true ? user!.displayName : 'U')[0].toUpperCase(),
                         style: AppTypography.labelLarge
                             .copyWith(color: AppColors.primary),
                       ),

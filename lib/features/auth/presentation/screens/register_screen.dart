@@ -25,7 +25,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
-  final _phoneController = TextEditingController();
+  final _shopNameController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
   UserRole _selectedRole = UserRole.admin;
@@ -34,7 +34,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
-    _phoneController.dispose();
+    _shopNameController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -46,7 +46,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           email: _emailController.text.trim(),
           password: _passwordController.text,
           displayName: _nameController.text.trim(),
-          phone: _phoneController.text.trim(),
+          shopName: _shopNameController.text.trim(),
           role: _selectedRole,
         );
 
@@ -84,30 +84,42 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               children: [
                 const SizedBox(height: AppSizes.xxl),
 
-                // ── Back Button ──
-                GestureDetector(
-                  onTap: () => context.pop(),
-                  child: const Icon(Icons.arrow_back_rounded, size: 24),
+                // ── Top Bar ──
+                Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => context.pop(),
+                      child: const Icon(Icons.arrow_back_rounded, size: 24),
+                    ),
+                    Expanded(
+                      child: Center(
+                        child: Text(
+                          'Create Account',
+                          style: AppTypography.h3,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 24), // Balance the back button
+                  ],
                 ),
                 const SizedBox(height: AppSizes.xxl),
 
                 // ── Title ──
-                Center(
-                  child: Column(
-                    children: [
-                      Text(
-                        'Create Account',
-                        style: AppTypography.h2,
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Join Inventra',
+                      style: AppTypography.h2,
+                    ),
+                    const SizedBox(height: AppSizes.xs),
+                    Text(
+                      'Select your role and enter details to get started.',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.textSecondary,
                       ),
-                      const SizedBox(height: AppSizes.xs),
-                      Text(
-                        'Join Inventra',
-                        style: AppTypography.bodyMedium.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: AppSizes.xxl),
 
@@ -200,15 +212,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 ),
                 const SizedBox(height: AppSizes.lg),
 
-                // ── Phone ──
+                // ── Shop Name ──
                 AppTextField(
-                  label: 'Phone Number',
-                  hint: '+2348036129622',
-                  controller: _phoneController,
-                  keyboardType: TextInputType.phone,
+                  label: 'Shop Name',
+                  hint: 'My Awesome Shop',
+                  controller: _shopNameController,
                   textInputAction: TextInputAction.next,
-                  validator: Validators.phone,
-                  prefixIcon: const Icon(Icons.phone_outlined, size: 20),
+                  validator: (v) => Validators.required(v, 'Shop Name'),
+                  prefixIcon: const Icon(Icons.store_outlined, size: 20),
                 ),
                 const SizedBox(height: AppSizes.lg),
 
@@ -236,12 +247,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 ),
                 const SizedBox(height: AppSizes.xxxl),
 
-                // ── Create Account Button (coral from Figma) ──
+                // ── Create Account Button ──
                 AppButton(
                   label: 'Create Account',
                   isLoading: authState.isLoading,
                   onPressed: _onRegister,
-                  backgroundColor: AppColors.coral,
+                  backgroundColor: AppColors.primary,
                 ),
                 const SizedBox(height: AppSizes.xxl),
 
@@ -259,7 +270,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       GestureDetector(
                         onTap: () => context.pop(),
                         child: Text(
-                          'Sign In',
+                          'Log In',
                           style: AppTypography.labelLarge.copyWith(
                             color: AppColors.primary,
                           ),

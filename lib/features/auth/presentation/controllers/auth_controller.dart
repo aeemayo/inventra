@@ -95,7 +95,7 @@ class AuthController extends StateNotifier<AuthState> {
     required String email,
     required String password,
     required String displayName,
-    required String phone,
+    required String shopName,
     required UserRole role,
   }) async {
     state = state.copyWith(isLoading: true, error: null, isSuccess: false);
@@ -104,7 +104,7 @@ class AuthController extends StateNotifier<AuthState> {
         email: email,
         password: password,
         displayName: displayName,
-        phone: phone,
+        shopName: shopName,
         role: role,
       );
       state = state.copyWith(isLoading: false, isSuccess: true);
@@ -173,7 +173,7 @@ class _UnavailableAuthRepository implements AuthRepository {
     required String email,
     required String password,
     required String displayName,
-    required String phone,
+    required String shopName,
     required UserRole role,
   }) {
     throw AuthFailure(message: message, code: 'auth-unavailable');

@@ -35,6 +35,7 @@ class AppUser extends Equatable {
   final String displayName;
   final String? photoUrl;
   final String? shopId;
+  final String? shopName;
   final UserRole role;
   final String? fcmToken;
   final DateTime createdAt;
@@ -46,6 +47,7 @@ class AppUser extends Equatable {
     required this.displayName,
     this.photoUrl,
     this.shopId,
+    this.shopName,
     required this.role,
     this.fcmToken,
     required this.createdAt,
@@ -60,6 +62,7 @@ class AppUser extends Equatable {
     String? displayName,
     String? photoUrl,
     String? shopId,
+    String? shopName,
     UserRole? role,
     String? fcmToken,
     DateTime? createdAt,
@@ -71,6 +74,7 @@ class AppUser extends Equatable {
       displayName: displayName ?? this.displayName,
       photoUrl: photoUrl ?? this.photoUrl,
       shopId: shopId ?? this.shopId,
+      shopName: shopName ?? this.shopName,
       role: role ?? this.role,
       fcmToken: fcmToken ?? this.fcmToken,
       createdAt: createdAt ?? this.createdAt,
@@ -79,5 +83,5 @@ class AppUser extends Equatable {
   }
 
   @override
-  List<Object?> get props => [uid, email, displayName, photoUrl, shopId, role, fcmToken];
+  List<Object?> get props => [uid, email, displayName, photoUrl, shopId, shopName, role, fcmToken];
 }
