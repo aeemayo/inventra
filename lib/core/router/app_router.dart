@@ -8,6 +8,7 @@ import '../../features/auth/presentation/screens/splash_screen.dart';
 import '../../features/dashboard/presentation/screens/dashboard_screen.dart';
 import '../../features/inventory/presentation/screens/inventory_list_screen.dart';
 import '../../features/inventory/presentation/screens/add_edit_product_screen.dart';
+import '../../features/edit/presentation/screens/edit_products_screen.dart';
 import '../../features/scanner/presentation/screens/scanner_screen.dart';
 import '../../features/sales/presentation/screens/new_sale_screen.dart';
 import '../../features/sales/presentation/screens/checkout_screen.dart';
@@ -37,7 +38,7 @@ final routerProvider = Provider<GoRouter>((ref) {
               builder: (_, __) => const InventoryListScreen()),
           GoRoute(path: '/scanner', builder: (_, __) => const ScannerScreen()),
           GoRoute(
-              path: '/transactions', builder: (_, __) => const NewSaleScreen()),
+              path: '/edit', builder: (_, __) => const EditProductsScreen()),
           GoRoute(
               path: '/reporting', builder: (_, __) => const ReportingScreen()),
         ],
@@ -73,7 +74,7 @@ class _MainShell extends StatelessWidget {
     if (location.startsWith('/dashboard')) return 0;
     if (location.startsWith('/inventory')) return 1;
     if (location.startsWith('/scanner')) return 2;
-    if (location.startsWith('/transactions')) return 3;
+    if (location.startsWith('/edit')) return 3;
     if (location.startsWith('/reporting')) return 4;
     return 0;
   }
@@ -130,11 +131,11 @@ class _MainShell extends StatelessWidget {
                   ),
                 ),
                 _NavItem(
-                    icon: Icons.receipt_long_outlined,
-                    activeIcon: Icons.receipt_long_rounded,
-                    label: 'Sales',
+                    icon: Icons.edit_note_outlined,
+                    activeIcon: Icons.edit_note_rounded,
+                    label: 'Edit',
                     isActive: idx == 3,
-                    onTap: () => context.go('/transactions')),
+                    onTap: () => context.go('/edit')),
                 _NavItem(
                     icon: Icons.bar_chart_outlined,
                     activeIcon: Icons.bar_chart_rounded,

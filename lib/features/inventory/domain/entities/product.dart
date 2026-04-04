@@ -16,6 +16,7 @@ class Product extends Equatable {
   final String? supplier;
   final String? imageUrl;
   final String? description;
+  final DateTime? expiryDate;
   final bool isActive;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -37,6 +38,7 @@ class Product extends Equatable {
     this.supplier,
     this.imageUrl,
     this.description,
+    this.expiryDate,
     this.isActive = true,
     required this.createdAt,
     required this.updatedAt,
@@ -67,6 +69,7 @@ class Product extends Equatable {
     String? supplier,
     String? imageUrl,
     String? description,
+    DateTime? expiryDate,
     bool? isActive,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -88,6 +91,7 @@ class Product extends Equatable {
       supplier: supplier ?? this.supplier,
       imageUrl: imageUrl ?? this.imageUrl,
       description: description ?? this.description,
+      expiryDate: expiryDate ?? this.expiryDate,
       isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -97,5 +101,6 @@ class Product extends Equatable {
   }
 
   @override
-  List<Object?> get props => [id, name, sku, barcode, quantity, sellingPrice];
+  List<Object?> get props =>
+      [id, name, sku, barcode, quantity, sellingPrice, expiryDate];
 }

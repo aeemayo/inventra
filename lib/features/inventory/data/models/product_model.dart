@@ -17,6 +17,7 @@ class ProductModel {
   final String? supplier;
   final String? imageUrl;
   final String? description;
+  final DateTime? expiryDate;
   final bool isActive;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -38,6 +39,7 @@ class ProductModel {
     this.supplier,
     this.imageUrl,
     this.description,
+    this.expiryDate,
     this.isActive = true,
     required this.createdAt,
     required this.updatedAt,
@@ -45,7 +47,8 @@ class ProductModel {
     required this.updatedBy,
   });
 
-  factory ProductModel.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
+  factory ProductModel.fromFirestore(
+      DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data()!;
     return ProductModel(
       id: doc.id,
@@ -62,6 +65,7 @@ class ProductModel {
       supplier: data['supplier'] as String?,
       imageUrl: data['imageUrl'] as String?,
       description: data['description'] as String?,
+      expiryDate: (data['expiryDate'] as Timestamp?)?.toDate(),
       isActive: data['isActive'] as bool? ?? true,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -85,6 +89,7 @@ class ProductModel {
       'supplier': supplier,
       'imageUrl': imageUrl,
       'description': description,
+      'expiryDate': expiryDate != null ? Timestamp.fromDate(expiryDate!) : null,
       'isActive': isActive,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
@@ -109,6 +114,7 @@ class ProductModel {
       supplier: supplier,
       imageUrl: imageUrl,
       description: description,
+      expiryDate: expiryDate,
       isActive: isActive,
       createdAt: createdAt,
       updatedAt: updatedAt,
@@ -133,6 +139,7 @@ class ProductModel {
       supplier: product.supplier,
       imageUrl: product.imageUrl,
       description: product.description,
+      expiryDate: product.expiryDate,
       isActive: product.isActive,
       createdAt: product.createdAt,
       updatedAt: product.updatedAt,

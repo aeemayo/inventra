@@ -73,6 +73,7 @@ class _AddEditProductScreenState extends ConsumerState<AddEditProductScreen> {
         _supplierController.text = product.supplier ?? '';
         _descriptionController.text = product.description ?? '';
         _categoryController.text = product.categoryId ?? '';
+        _expiryController.text = _formatDateForInput(product.expiryDate);
       });
     }
   }
@@ -120,6 +121,7 @@ class _AddEditProductScreenState extends ConsumerState<AddEditProductScreen> {
       description: _descriptionController.text.trim().isEmpty
           ? null
           : _descriptionController.text.trim(),
+      expiryDate: _parseExpiryDate(_expiryController.text),
       createdAt: _existingProduct?.createdAt ?? now,
       updatedAt: now,
       createdBy: _existingProduct?.createdBy ?? userId,
@@ -152,6 +154,31 @@ class _AddEditProductScreenState extends ConsumerState<AddEditProductScreen> {
   void _incrementQty() => setState(() => _quantity++);
   void _decrementQty() {
     if (_quantity > 1) setState(() => _quantity--);
+  }
+
+  String _formatDateForInput(DateTime? date) {
+    if (date == null) return '';
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    return '$month/$day/${date.year}';
+  }
+
+  DateTime? _parseExpiryDate(String input) {
+    final text = input.trim();
+    if (text.isEmpty) return null;
+
+    final slashMatch =
+        RegExp(r'^(\d{1,2})/(\d{1,2})/(\d{4})$').firstMatch(text);
+    if (slashMatch != null) {
+      final month = int.tryParse(slashMatch.group(1)!);
+      final day = int.tryParse(slashMatch.group(2)!);
+      final year = int.tryParse(slashMatch.group(3)!);
+      if (month != null && day != null && year != null) {
+        return DateTime(year, month, day);
+      }
+    }
+
+    return DateTime.tryParse(text);
   }
 
   @override
