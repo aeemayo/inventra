@@ -116,7 +116,7 @@ class _EditProductsScreenState extends ConsumerState<EditProductsScreen> {
                 if (!mounted) return;
 
                 if (success) {
-                  Navigator.pop(ctx);
+                  Navigator.of(context).pop();
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('Product updated.'),
