@@ -21,25 +21,43 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/', builder: (_, __) => const SplashScreen()),
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
       GoRoute(path: '/register', builder: (_, __) => const RegisterScreen()),
-      GoRoute(path: '/forgot-password', builder: (_, __) => const ForgotPasswordScreen()),
+      GoRoute(
+          path: '/forgot-password',
+          builder: (_, __) => const ForgotPasswordScreen()),
 
       // Main app with bottom nav
       ShellRoute(
         builder: (context, state, child) =>
             _MainShell(state: state, child: child),
         routes: [
-          GoRoute(path: '/dashboard', builder: (_, __) => const DashboardScreen()),
-          GoRoute(path: '/inventory', builder: (_, __) => const InventoryListScreen()),
+          GoRoute(
+              path: '/dashboard', builder: (_, __) => const DashboardScreen()),
+          GoRoute(
+              path: '/inventory',
+              builder: (_, __) => const InventoryListScreen()),
           GoRoute(path: '/scanner', builder: (_, __) => const ScannerScreen()),
-          GoRoute(path: '/transactions', builder: (_, __) => const NewSaleScreen()),
-          GoRoute(path: '/reporting', builder: (_, __) => const ReportingScreen()),
+          GoRoute(
+              path: '/transactions', builder: (_, __) => const NewSaleScreen()),
+          GoRoute(
+              path: '/reporting', builder: (_, __) => const ReportingScreen()),
         ],
       ),
 
       // Sub-routes
-      GoRoute(path: '/inventory/add', builder: (_, __) => const AddEditProductScreen()),
-      GoRoute(path: '/inventory/:id/edit', builder: (_, state) => AddEditProductScreen(productId: state.pathParameters['id'])),
-      GoRoute(path: '/new-sale', builder: (_, state) => NewSaleScreen(initialProduct: state.extra as dynamic)),
+      GoRoute(
+        path: '/inventory/add',
+        builder: (_, state) => AddEditProductScreen(
+          initialBarcode: state.uri.queryParameters['barcode'],
+        ),
+      ),
+      GoRoute(
+          path: '/inventory/:id/edit',
+          builder: (_, state) =>
+              AddEditProductScreen(productId: state.pathParameters['id'])),
+      GoRoute(
+          path: '/new-sale',
+          builder: (_, state) =>
+              NewSaleScreen(initialProduct: state.extra as dynamic)),
       GoRoute(path: '/checkout', builder: (_, __) => const CheckoutScreen()),
     ],
   );
@@ -68,7 +86,10 @@ class _MainShell extends StatelessWidget {
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
           color: AppColors.white,
-          boxShadow: [BoxShadow(color: AppColors.shadow, blurRadius: 8, offset: Offset(0, -2))],
+          boxShadow: [
+            BoxShadow(
+                color: AppColors.shadow, blurRadius: 8, offset: Offset(0, -2))
+          ],
         ),
         child: SafeArea(
           child: SizedBox(
@@ -76,23 +97,50 @@ class _MainShell extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _NavItem(icon: Icons.dashboard_outlined, activeIcon: Icons.dashboard_rounded, label: 'Dashboard', isActive: idx == 0, onTap: () => context.go('/dashboard')),
-                _NavItem(icon: Icons.inventory_2_outlined, activeIcon: Icons.inventory_2_rounded, label: 'Products', isActive: idx == 1, onTap: () => context.go('/inventory')),
+                _NavItem(
+                    icon: Icons.dashboard_outlined,
+                    activeIcon: Icons.dashboard_rounded,
+                    label: 'Dashboard',
+                    isActive: idx == 0,
+                    onTap: () => context.go('/dashboard')),
+                _NavItem(
+                    icon: Icons.inventory_2_outlined,
+                    activeIcon: Icons.inventory_2_rounded,
+                    label: 'Products',
+                    isActive: idx == 1,
+                    onTap: () => context.go('/inventory')),
                 // Center Scanner FAB
                 GestureDetector(
                   onTap: () => context.go('/scanner'),
                   child: Container(
-                    width: 52, height: 52,
+                    width: 52,
+                    height: 52,
                     decoration: BoxDecoration(
                       color: AppColors.primary,
                       borderRadius: BorderRadius.circular(16),
-                      boxShadow: [BoxShadow(color: AppColors.primary.withValues(alpha: 0.3), blurRadius: 12, offset: const Offset(0, 4))],
+                      boxShadow: [
+                        BoxShadow(
+                            color: AppColors.primary.withValues(alpha: 0.3),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4))
+                      ],
                     ),
-                    child: const Icon(Icons.qr_code_scanner_rounded, color: AppColors.white, size: 26),
+                    child: const Icon(Icons.qr_code_scanner_rounded,
+                        color: AppColors.white, size: 26),
                   ),
                 ),
-                _NavItem(icon: Icons.receipt_long_outlined, activeIcon: Icons.receipt_long_rounded, label: 'Sales', isActive: idx == 3, onTap: () => context.go('/transactions')),
-                _NavItem(icon: Icons.bar_chart_outlined, activeIcon: Icons.bar_chart_rounded, label: 'Reports', isActive: idx == 4, onTap: () => context.go('/reporting')),
+                _NavItem(
+                    icon: Icons.receipt_long_outlined,
+                    activeIcon: Icons.receipt_long_rounded,
+                    label: 'Sales',
+                    isActive: idx == 3,
+                    onTap: () => context.go('/transactions')),
+                _NavItem(
+                    icon: Icons.bar_chart_outlined,
+                    activeIcon: Icons.bar_chart_rounded,
+                    label: 'Reports',
+                    isActive: idx == 4,
+                    onTap: () => context.go('/reporting')),
               ],
             ),
           ),
@@ -108,7 +156,12 @@ class _NavItem extends StatelessWidget {
   final bool isActive;
   final VoidCallback onTap;
 
-  const _NavItem({required this.icon, required this.activeIcon, required this.label, required this.isActive, required this.onTap});
+  const _NavItem(
+      {required this.icon,
+      required this.activeIcon,
+      required this.label,
+      required this.isActive,
+      required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -120,9 +173,16 @@ class _NavItem extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(isActive ? activeIcon : icon, size: 24, color: isActive ? AppColors.primary : AppColors.textTertiary),
+            Icon(isActive ? activeIcon : icon,
+                size: 24,
+                color: isActive ? AppColors.primary : AppColors.textTertiary),
             const SizedBox(height: 4),
-            Text(label, style: TextStyle(fontSize: 10, fontWeight: isActive ? FontWeight.w600 : FontWeight.w400, color: isActive ? AppColors.primary : AppColors.textTertiary)),
+            Text(label,
+                style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                    color:
+                        isActive ? AppColors.primary : AppColors.textTertiary)),
           ],
         ),
       ),

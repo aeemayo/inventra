@@ -28,6 +28,7 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
   bool _isProcessing = false;
   bool _torchEnabled = false;
   String? _lastScannedCode;
+  ScanIntent? _selectedIntent;
 
   @override
   void initState() {
@@ -37,6 +38,11 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
       facing: CameraFacing.back,
       torchEnabled: false,
     );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _selectedIntent == null) {
+        _selectScanIntent();
+      }
+    });
   }
 
   @override
@@ -47,7 +53,7 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
   }
 
   void _onBarcodeDetected(BarcodeCapture capture) {
-    if (_isProcessing) return;
+    if (_isProcessing || _selectedIntent == null) return;
     final barcodes = capture.barcodes;
     if (barcodes.isEmpty) return;
 
@@ -62,10 +68,24 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
 
   Future<void> _processBarcode(String barcode) async {
     if (_isProcessing) return;
+
+    final selectedIntent = _selectedIntent;
+    if (selectedIntent == null) {
+      _showIntentRequiredSnackBar();
+      return;
+    }
+
     setState(() {
       _isProcessing = true;
       _lastScannedCode = barcode;
     });
+
+    if (selectedIntent == ScanIntent.addProduct) {
+      if (!mounted) return;
+      context.push('/inventory/add?barcode=$barcode');
+      setState(() => _isProcessing = false);
+      return;
+    }
 
     final shopId = ref.read(currentShopIdProvider);
     if (shopId == null) {
@@ -88,7 +108,8 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.error),
+          SnackBar(
+              content: Text('Error: $e'), backgroundColor: AppColors.error),
         );
       }
     } finally {
@@ -313,6 +334,31 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
     );
   }
 
+  Future<void> _selectScanIntent() async {
+    final selected = await showModalBottomSheet<ScanIntent>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _ScanIntentSheet(initialIntent: _selectedIntent),
+    );
+
+    if (selected != null && mounted) {
+      setState(() {
+        _selectedIntent = selected;
+        _lastScannedCode = null;
+      });
+    }
+  }
+
+  void _showIntentRequiredSnackBar() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Select scan purpose first: Add Product or New Sale.'),
+        backgroundColor: AppColors.warning,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -346,8 +392,14 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
                           color: AppColors.white, size: 28),
                       onPressed: () => context.go('/dashboard'),
                     ),
-                    Text('Scan Product',
-                        style: AppTypography.h4.copyWith(color: AppColors.white)),
+                    Text(
+                        _selectedIntent == ScanIntent.addProduct
+                            ? 'Scan for New Product'
+                            : _selectedIntent == ScanIntent.newSale
+                                ? 'Scan for New Sale'
+                                : 'Select Scan Purpose',
+                        style:
+                            AppTypography.h4.copyWith(color: AppColors.white)),
                     IconButton(
                       icon: Icon(
                         _torchEnabled
@@ -387,9 +439,27 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'Identify Product',
+                    _selectedIntent == ScanIntent.addProduct
+                        ? 'Scanned code will open New Product form'
+                        : _selectedIntent == ScanIntent.newSale
+                            ? 'Identify Product for a New Sale'
+                            : 'Choose what this scan is for',
                     style: AppTypography.bodyMedium
                         .copyWith(color: AppColors.white),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: AppSizes.md),
+
+                  SizedBox(
+                    width: double.infinity,
+                    child: AppButton(
+                      label: _selectedIntent == null
+                          ? 'Select Scan Purpose'
+                          : 'Change Scan Purpose',
+                      icon: Icons.swap_horiz_rounded,
+                      isOutlined: true,
+                      onPressed: _selectScanIntent,
+                    ),
                   ),
                   const SizedBox(height: AppSizes.lg),
 
@@ -419,19 +489,29 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
                     children: [
                       Expanded(
                         child: _BottomActionButton(
-                          icon: Icons.qr_code_2_rounded,
-                          label: 'QR Mode',
-                          isActive: false,
-                          onTap: () {},
+                          icon: Icons.add_box_rounded,
+                          label: 'Add Product',
+                          isActive: _selectedIntent == ScanIntent.addProduct,
+                          onTap: () {
+                            setState(() {
+                              _selectedIntent = ScanIntent.addProduct;
+                              _lastScannedCode = null;
+                            });
+                          },
                         ),
                       ),
                       const SizedBox(width: AppSizes.md),
                       Expanded(
                         child: _BottomActionButton(
-                          icon: Icons.auto_fix_high_rounded,
-                          label: 'Auto-detect',
-                          isActive: true,
-                          onTap: () {},
+                          icon: Icons.point_of_sale_rounded,
+                          label: 'New Sale',
+                          isActive: _selectedIntent == ScanIntent.newSale,
+                          onTap: () {
+                            setState(() {
+                              _selectedIntent = ScanIntent.newSale;
+                              _lastScannedCode = null;
+                            });
+                          },
                         ),
                       ),
                     ],
@@ -441,6 +521,142 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+enum ScanIntent { addProduct, newSale }
+
+class _ScanIntentSheet extends StatelessWidget {
+  final ScanIntent? initialIntent;
+
+  const _ScanIntentSheet({this.initialIntent});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSizes.xxl),
+      decoration: const BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.divider,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSizes.xl),
+          Text('What is this scan for?', style: AppTypography.h4),
+          const SizedBox(height: AppSizes.sm),
+          Text(
+            'Choose one option before scanning.',
+            style: AppTypography.bodyMedium
+                .copyWith(color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: AppSizes.xl),
+          _IntentOptionTile(
+            icon: Icons.add_box_rounded,
+            title: 'Add New Product',
+            subtitle: 'Open product form with scanned barcode pre-filled.',
+            isActive: initialIntent == ScanIntent.addProduct,
+            onTap: () => Navigator.pop(context, ScanIntent.addProduct),
+          ),
+          const SizedBox(height: AppSizes.md),
+          _IntentOptionTile(
+            icon: Icons.point_of_sale_rounded,
+            title: 'Create New Sale',
+            subtitle: 'Lookup product and continue to sale flow.',
+            isActive: initialIntent == ScanIntent.newSale,
+            onTap: () => Navigator.pop(context, ScanIntent.newSale),
+          ),
+          SizedBox(height: MediaQuery.of(context).padding.bottom + 12),
+        ],
+      ),
+    );
+  }
+}
+
+class _IntentOptionTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool isActive;
+  final VoidCallback onTap;
+
+  const _IntentOptionTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.isActive,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Ink(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isActive ? AppColors.primary : AppColors.divider,
+              width: isActive ? 1.8 : 1,
+            ),
+            color: isActive
+                ? AppColors.primary.withValues(alpha: 0.08)
+                : AppColors.white,
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: isActive
+                      ? AppColors.primary.withValues(alpha: 0.16)
+                      : AppColors.inputFill,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  icon,
+                  color: isActive ? AppColors.primary : AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: AppTypography.labelLarge),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: AppTypography.bodySmall
+                          .copyWith(color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+              if (isActive)
+                const Icon(Icons.check_circle_rounded,
+                    color: AppColors.primary),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -475,14 +691,12 @@ class _ScanOverlayPainter extends CustomPainter {
     // Dim overlay
     final overlayPaint = Paint()..color = Colors.black.withValues(alpha: 0.5);
     canvas.drawRect(Rect.fromLTWH(0, 0, size.width, top), overlayPaint);
-    canvas.drawRect(
-        Rect.fromLTWH(0, top, left, scanAreaSize), overlayPaint);
-    canvas.drawRect(
-        Rect.fromLTWH(left + scanAreaSize, top, left, scanAreaSize),
+    canvas.drawRect(Rect.fromLTWH(0, top, left, scanAreaSize), overlayPaint);
+    canvas.drawRect(Rect.fromLTWH(left + scanAreaSize, top, left, scanAreaSize),
         overlayPaint);
     canvas.drawRect(
-        Rect.fromLTWH(
-            0, top + scanAreaSize, size.width, size.height - top - scanAreaSize),
+        Rect.fromLTWH(0, top + scanAreaSize, size.width,
+            size.height - top - scanAreaSize),
         overlayPaint);
 
     // Scan frame corners
