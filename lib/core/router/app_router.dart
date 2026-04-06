@@ -14,6 +14,7 @@ import '../../features/sales/presentation/screens/new_sale_screen.dart';
 import '../../features/sales/presentation/screens/checkout_screen.dart';
 import '../../features/analytics/presentation/screens/reporting_screen.dart';
 import '../constants/app_colors.dart';
+import 'scanner_route_access.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -36,7 +37,11 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
               path: '/inventory',
               builder: (_, __) => const InventoryListScreen()),
-          GoRoute(path: '/scanner', builder: (_, __) => const ScannerScreen()),
+          GoRoute(
+            path: '/scanner',
+            builder: (_, state) =>
+                ScannerScreen(reason: state.uri.queryParameters['reason']),
+          ),
           GoRoute(
               path: '/edit', builder: (_, __) => const EditProductsScreen()),
           GoRoute(
@@ -47,6 +52,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Sub-routes
       GoRoute(
         path: '/inventory/add',
+        redirect: (_, __) {
+          final allowed = ref
+              .read(scannerRouteAccessProvider.notifier)
+              .consumeIfValid(ScannerProtectedRoute.addProduct);
+          return allowed ? null : '/scanner?reason=restricted';
+        },
         builder: (_, state) => AddEditProductScreen(
           initialBarcode: state.uri.queryParameters['barcode'],
         ),
@@ -57,6 +68,12 @@ final routerProvider = Provider<GoRouter>((ref) {
               AddEditProductScreen(productId: state.pathParameters['id'])),
       GoRoute(
           path: '/new-sale',
+          redirect: (_, __) {
+            final allowed = ref
+                .read(scannerRouteAccessProvider.notifier)
+                .consumeIfValid(ScannerProtectedRoute.newSale);
+            return allowed ? null : '/scanner?reason=restricted';
+          },
           builder: (_, state) =>
               NewSaleScreen(initialProduct: state.extra as dynamic)),
       GoRoute(path: '/checkout', builder: (_, __) => const CheckoutScreen()),

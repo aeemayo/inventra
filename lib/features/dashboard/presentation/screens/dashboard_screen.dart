@@ -42,7 +42,11 @@ class DashboardScreen extends ConsumerWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(user?.shopName?.isNotEmpty == true ? user!.shopName! : 'My Shop', style: AppTypography.h2),
+                      Text(
+                          user?.shopName?.isNotEmpty == true
+                              ? user!.shopName!
+                              : 'My Shop',
+                          style: AppTypography.h2),
                       const SizedBox(height: 2),
                       Text(
                         'Welcome back, ${user?.displayName.isNotEmpty == true ? user!.displayName : 'User'}',
@@ -58,7 +62,10 @@ class DashboardScreen extends ConsumerWidget {
                       radius: 22,
                       backgroundColor: AppColors.primarySurface,
                       child: Text(
-                        (user?.displayName.isNotEmpty == true ? user!.displayName : 'U')[0].toUpperCase(),
+                        (user?.displayName.isNotEmpty == true
+                                ? user!.displayName
+                                : 'U')[0]
+                            .toUpperCase(),
                         style: AppTypography.labelLarge
                             .copyWith(color: AppColors.primary),
                       ),
@@ -127,13 +134,14 @@ class DashboardScreen extends ConsumerWidget {
                             height: 100,
                             child: Center(
                               child: Text('No products yet',
-                                  style: TextStyle(color: AppColors.textTertiary)),
+                                  style:
+                                      TextStyle(color: AppColors.textTertiary)),
                             ),
                           );
                         }
 
-                        final maxVal = categoryStocks.values.reduce(
-                            (a, b) => a > b ? a : b);
+                        final maxVal = categoryStocks.values
+                            .reduce((a, b) => a > b ? a : b);
 
                         return Column(
                           children: categoryStocks.entries
@@ -226,22 +234,16 @@ class DashboardScreen extends ConsumerWidget {
               Row(
                 children: [
                   _QuickAction(
-                    icon: Icons.add_box_outlined,
-                    label: 'Add Product',
+                    icon: Icons.inventory_2_outlined,
+                    label: 'Products',
                     color: AppColors.primary,
-                    onTap: () => context.push('/inventory/add'),
+                    onTap: () => context.go('/inventory'),
                   ),
                   _QuickAction(
                     icon: Icons.qr_code_scanner_rounded,
                     label: 'Scan',
                     color: AppColors.scannerBlue,
                     onTap: () => context.go('/scanner'),
-                  ),
-                  _QuickAction(
-                    icon: Icons.point_of_sale_rounded,
-                    label: 'New Sale',
-                    color: AppColors.coral,
-                    onTap: () => context.push('/new-sale'),
                   ),
                   _QuickAction(
                     icon: Icons.bar_chart_rounded,

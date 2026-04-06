@@ -28,10 +28,6 @@ class InventoryListScreen extends ConsumerWidget {
             icon: const Icon(Icons.filter_list_rounded),
             onPressed: () => _showFilterSheet(context, ref),
           ),
-          IconButton(
-            icon: const Icon(Icons.add_rounded),
-            onPressed: () => context.push('/inventory/add'),
-          ),
         ],
       ),
       body: Column(
@@ -49,7 +45,8 @@ class InventoryListScreen extends ConsumerWidget {
                   ? IconButton(
                       icon: const Icon(Icons.close_rounded, size: 18),
                       onPressed: () {
-                        ref.read(productSearchQueryProvider.notifier).state = '';
+                        ref.read(productSearchQueryProvider.notifier).state =
+                            '';
                       },
                     )
                   : null,
@@ -58,7 +55,8 @@ class InventoryListScreen extends ConsumerWidget {
 
           // ── Count Badge ──
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppSizes.screenPaddingH),
+            padding:
+                const EdgeInsets.symmetric(horizontal: AppSizes.screenPaddingH),
             child: Row(
               children: [
                 Text(
@@ -83,12 +81,9 @@ class InventoryListScreen extends ConsumerWidget {
                         : 'No products yet',
                     subtitle: searchQuery.isNotEmpty
                         ? 'Try a different search term'
-                        : 'Add your first product to get started',
-                    actionLabel:
-                        searchQuery.isEmpty ? 'Add Product' : null,
-                    onAction: searchQuery.isEmpty
-                        ? () => context.push('/inventory/add')
-                        : null,
+                        : 'Use Scanner to add your first product',
+                    actionLabel: null,
+                    onAction: null,
                   )
                 : ListView.separated(
                     padding: const EdgeInsets.symmetric(
@@ -100,8 +95,7 @@ class InventoryListScreen extends ConsumerWidget {
                       final product = products[index];
                       return _ProductListTile(
                         product: product,
-                        onTap: () =>
-                            context.push('/inventory/${product.id}'),
+                        onTap: () => context.push('/inventory/${product.id}'),
                       );
                     },
                   ),
@@ -130,8 +124,7 @@ class InventoryListScreen extends ConsumerWidget {
                 spacing: 8,
                 runSpacing: 8,
                 children: ProductSort.values.map((sort) {
-                  final isSelected =
-                      ref.read(productSortProvider) == sort;
+                  final isSelected = ref.read(productSortProvider) == sort;
                   return ChoiceChip(
                     label: Text(_sortLabel(sort)),
                     selected: isSelected,

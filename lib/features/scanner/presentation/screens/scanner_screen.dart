@@ -5,6 +5,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_sizes.dart';
 import '../../../../core/constants/app_typography.dart';
+import '../../../../core/router/scanner_route_access.dart';
 import '../../../../core/utils/debouncer.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../inventory/presentation/controllers/inventory_controller.dart';
@@ -16,7 +17,9 @@ import '../../../inventory/domain/entities/product.dart';
 /// - "Identify Product" label
 /// - Bottom panel with action buttons
 class ScannerScreen extends ConsumerStatefulWidget {
-  const ScannerScreen({super.key});
+  final String? reason;
+
+  const ScannerScreen({super.key, this.reason});
 
   @override
   ConsumerState<ScannerScreen> createState() => _ScannerScreenState();
@@ -39,6 +42,17 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
       torchEnabled: false,
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && widget.reason == 'restricted') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content:
+                Text('Use scanner flow to open Add Product or New Sale pages.'),
+            backgroundColor: AppColors.warning,
+          ),
+        );
+        context.replace('/scanner');
+      }
+
       if (mounted && _selectedIntent == null) {
         _selectScanIntent();
       }
@@ -82,6 +96,9 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
 
     if (selectedIntent == ScanIntent.addProduct) {
       if (!mounted) return;
+      ref
+          .read(scannerRouteAccessProvider.notifier)
+          .grant(ScannerProtectedRoute.addProduct);
       context.push('/inventory/add?barcode=$barcode');
       setState(() => _isProcessing = false);
       return;
@@ -127,6 +144,9 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
         barcode: barcode,
         onSell: () {
           Navigator.pop(ctx);
+          ref
+              .read(scannerRouteAccessProvider.notifier)
+              .grant(ScannerProtectedRoute.newSale);
           context.push('/new-sale', extra: product);
         },
         onRestock: () {
@@ -193,6 +213,9 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
               icon: Icons.add_rounded,
               onPressed: () {
                 Navigator.pop(ctx);
+                ref
+                    .read(scannerRouteAccessProvider.notifier)
+                    .grant(ScannerProtectedRoute.addProduct);
                 context.push('/inventory/add?barcode=$barcode');
               },
             ),
