@@ -246,6 +246,12 @@ class DashboardScreen extends ConsumerWidget {
                     onTap: () => context.go('/scanner'),
                   ),
                   _QuickAction(
+                    icon: Icons.receipt_long_rounded,
+                    label: 'Logs',
+                    color: AppColors.coral,
+                    onTap: () => context.push('/transaction-logs'),
+                  ),
+                  _QuickAction(
                     icon: Icons.bar_chart_rounded,
                     label: 'Reports',
                     color: AppColors.info,
