@@ -9,12 +9,6 @@ import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../controllers/auth_controller.dart';
 
-/// Edit Profile screen matching the Figma design:
-/// - Circular avatar with camera overlay
-/// - Displayed name + role badge
-/// - Editable fields: Full Name, Email (read-only), Phone, Shop Name
-/// - Save Changes button
-/// - Delete Account action
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
@@ -89,8 +83,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           TextButton(
             onPressed: () {
               Navigator.of(ctx).pop();
-              // Sign out for now — full account deletion requires
-              // Firebase Admin SDK or re-authentication flow
               ref.read(authControllerProvider.notifier).signOut();
               context.go('/login');
             },
@@ -330,7 +322,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     const SizedBox(height: AppSizes.sm),
                     AppTextField(
                       controller: _phoneController,
-                      hint: '+1 (555) 0123-4567',
+                      hint: '+2348136129622',
                       keyboardType: TextInputType.phone,
                       textInputAction: TextInputAction.next,
                       validator: (v) {

@@ -215,7 +215,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 // ── Shop Name ──
                 AppTextField(
                   label: 'Shop Name',
-                  hint: 'My Awesome Shop',
+                  hint: 'Champions Supermart',
                   controller: _shopNameController,
                   textInputAction: TextInputAction.next,
                   validator: (v) => Validators.required(v, 'Shop Name'),
