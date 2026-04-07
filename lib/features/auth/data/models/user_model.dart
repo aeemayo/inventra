@@ -7,6 +7,7 @@ class UserModel {
   final String email;
   final String displayName;
   final String? photoUrl;
+  final String? phoneNumber;
   final String? shopId;
   final String role;
   final String? shopName;
@@ -19,6 +20,7 @@ class UserModel {
     required this.email,
     required this.displayName,
     this.photoUrl,
+    this.phoneNumber,
     this.shopId,
     required this.role,
     this.shopName,
@@ -34,6 +36,7 @@ class UserModel {
       email: data['email'] as String? ?? '',
       displayName: data['displayName'] as String? ?? '',
       photoUrl: data['photoUrl'] as String?,
+      phoneNumber: data['phoneNumber'] as String?,
       shopId: data['shopId'] as String?,
       role: data['role'] as String? ?? 'sales',
       shopName: data['shopName'] as String?,
@@ -49,6 +52,7 @@ class UserModel {
       'email': email,
       'displayName': displayName,
       'photoUrl': photoUrl,
+      'phoneNumber': phoneNumber,
       'shopId': shopId,
       'role': role,
       'shopName': shopName,
@@ -64,6 +68,7 @@ class UserModel {
       email: email,
       displayName: displayName,
       photoUrl: photoUrl,
+      phoneNumber: phoneNumber,
       shopId: shopId,
       shopName: shopName,
       role: _parseRole(role),
@@ -94,6 +99,7 @@ class UserModel {
       email: user.email,
       displayName: user.displayName,
       photoUrl: user.photoUrl,
+      phoneNumber: user.phoneNumber,
       shopId: user.shopId,
       role: user.role.name,
       shopName: shopName ?? user.shopName,

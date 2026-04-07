@@ -144,6 +144,30 @@ class AuthController extends StateNotifier<AuthState> {
     state = AuthState.initial;
   }
 
+  Future<bool> updateUserProfile({
+    String? displayName,
+    String? phoneNumber,
+    String? shopName,
+  }) async {
+    state = state.copyWith(isLoading: true, error: null, isSuccess: false);
+    try {
+      await _repository.updateProfile(
+        displayName: displayName,
+        phoneNumber: phoneNumber,
+        shopName: shopName,
+      );
+      state = state.copyWith(
+        isLoading: false,
+        isSuccess: true,
+        successMessage: 'Profile updated successfully',
+      );
+      return true;
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+      return false;
+    }
+  }
+
   void clearError() {
     state = state.copyWith(error: null);
   }
@@ -191,6 +215,8 @@ class _UnavailableAuthRepository implements AuthRepository {
   Future<void> updateProfile({
     String? displayName,
     String? photoUrl,
+    String? phoneNumber,
+    String? shopName,
     String? fcmToken,
   }) {
     throw AuthFailure(message: message, code: 'auth-unavailable');

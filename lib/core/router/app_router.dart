@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/register_screen.dart';
 import '../../features/auth/presentation/screens/forgot_password_screen.dart';
+import '../../features/auth/presentation/screens/profile_screen.dart';
 import '../../features/auth/presentation/screens/splash_screen.dart';
 import '../../features/dashboard/presentation/screens/dashboard_screen.dart';
 import '../../features/inventory/presentation/screens/inventory_list_screen.dart';
@@ -81,6 +82,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: '/transaction-logs',
           builder: (_, __) => const TransactionLogsScreen()),
+      GoRoute(
+          path: '/profile',
+          builder: (_, __) => const ProfileScreen()),
     ],
   );
 });

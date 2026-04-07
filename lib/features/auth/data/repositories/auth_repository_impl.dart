@@ -121,6 +121,8 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<void> updateProfile({
     String? displayName,
     String? photoUrl,
+    String? phoneNumber,
+    String? shopName,
     String? fcmToken,
   }) async {
     final uid = _auth.currentUser?.uid;
@@ -131,6 +133,8 @@ class AuthRepositoryImpl implements AuthRepository {
     };
     if (displayName != null) updates['displayName'] = displayName;
     if (photoUrl != null) updates['photoUrl'] = photoUrl;
+    if (phoneNumber != null) updates['phoneNumber'] = phoneNumber;
+    if (shopName != null) updates['shopName'] = shopName;
     if (fcmToken != null) updates['fcmToken'] = fcmToken;
 
     await _firestore
@@ -142,6 +146,8 @@ class AuthRepositoryImpl implements AuthRepository {
       _cachedUser = _cachedUser!.copyWith(
         displayName: displayName ?? _cachedUser!.displayName,
         photoUrl: photoUrl ?? _cachedUser!.photoUrl,
+        phoneNumber: phoneNumber ?? _cachedUser!.phoneNumber,
+        shopName: shopName ?? _cachedUser!.shopName,
         fcmToken: fcmToken ?? _cachedUser!.fcmToken,
       );
     }

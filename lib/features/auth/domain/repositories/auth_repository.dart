@@ -33,6 +33,8 @@ abstract class AuthRepository {
   Future<void> updateProfile({
     String? displayName,
     String? photoUrl,
+    String? phoneNumber,
+    String? shopName,
     String? fcmToken,
   });
 
