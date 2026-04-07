@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../inventory/presentation/controllers/inventory_controller.dart';
-import '../../../inventory/domain/entities/product.dart';
 import '../../../transactions/presentation/controllers/transaction_logs_controller.dart';
 
 // ── Revenue: sum of (sellingPrice * quantitySold) from stock_movements ──
