@@ -99,7 +99,7 @@ final todayIntakeCountProvider = Provider<int>((ref) {
       return logs
           .where((l) =>
               l.isIntake && l.createdAt.isAfter(todayStart))
-          .fold<int>(0, (sum, l) => sum + l.quantityChange);
+          .fold<int>(0, (total, l) => total + l.quantityChange);
     },
     loading: () => 0,
     error: (_, __) => 0,
@@ -116,7 +116,7 @@ final todaySalesCountProvider = Provider<int>((ref) {
       return logs
           .where((l) =>
               !l.isIntake && l.createdAt.isAfter(todayStart))
-          .fold<int>(0, (sum, l) => sum + l.quantityChange.abs());
+          .fold<int>(0, (total, l) => total + l.quantityChange.abs());
     },
     loading: () => 0,
     error: (_, __) => 0,
