@@ -396,7 +396,7 @@ class _BarcodeSearchScannerScreenState
   void initState() {
     super.initState();
     _controller = MobileScannerController(
-      detectionSpeed: DetectionSpeed.normal,
+      detectionSpeed: DetectionSpeed.unrestricted,
       facing: CameraFacing.back,
     );
   }

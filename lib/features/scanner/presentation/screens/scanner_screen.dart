@@ -34,7 +34,7 @@ class ScannerScreen extends ConsumerStatefulWidget {
 class _ScannerScreenState extends ConsumerState<ScannerScreen>
     with WidgetsBindingObserver {
   MobileScannerController? _cameraController;
-  final _debouncer = Debouncer(delay: const Duration(milliseconds: 800));
+  final _debouncer = Debouncer(delay: const Duration(milliseconds: 400));
   bool _isProcessing = false;
   bool _torchEnabled = false;
   String? _lastScannedCode;
@@ -113,7 +113,7 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen>
 
   void _initCamera() {
     _cameraController = MobileScannerController(
-      detectionSpeed: DetectionSpeed.normal,
+      detectionSpeed: DetectionSpeed.unrestricted,
       facing: CameraFacing.back,
       torchEnabled: false,
     );
@@ -125,7 +125,8 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen>
     final barcodes = capture.barcodes;
     if (barcodes.isEmpty) return;
 
-    final code = barcodes.first.rawValue;
+    final code =
+        (barcodes.first.rawValue ?? barcodes.first.displayValue)?.trim();
     if (code == null || code.isEmpty) return;
 
     // Debounce repeated scans of the same code
@@ -347,15 +348,14 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen>
         product: product,
         onConfirm: (quantity, note, supplier) async {
           Navigator.pop(ctx);
-          final success = await ref
-              .read(scannerControllerProvider.notifier)
-              .restockProduct(
-                productId: product.id,
-                productName: product.name,
-                quantity: quantity,
-                note: note,
-                supplier: supplier,
-              );
+          final success =
+              await ref.read(scannerControllerProvider.notifier).restockProduct(
+                    productId: product.id,
+                    productName: product.name,
+                    quantity: quantity,
+                    note: note,
+                    supplier: supplier,
+                  );
           if (mounted) {
             final state = ref.read(scannerControllerProvider);
             _showResultSnackBar(state.message ?? '', success);
@@ -778,8 +778,7 @@ class _CameraPermissionView extends StatelessWidget {
                   icon: isPermanent
                       ? Icons.settings_rounded
                       : Icons.check_circle_outline_rounded,
-                  onPressed:
-                      isPermanent ? onOpenSettings : onRequestPermission,
+                  onPressed: isPermanent ? onOpenSettings : onRequestPermission,
                 ),
               ),
               const SizedBox(height: AppSizes.md),
@@ -990,16 +989,16 @@ class _ScanOverlayPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
 
     // Top-left
-    canvas.drawLine(
-        scanRect.topLeft, scanRect.topLeft + const Offset(cornerLength, 0), paint);
-    canvas.drawLine(
-        scanRect.topLeft, scanRect.topLeft + const Offset(0, cornerLength), paint);
+    canvas.drawLine(scanRect.topLeft,
+        scanRect.topLeft + const Offset(cornerLength, 0), paint);
+    canvas.drawLine(scanRect.topLeft,
+        scanRect.topLeft + const Offset(0, cornerLength), paint);
 
     // Top-right
-    canvas.drawLine(
-        scanRect.topRight, scanRect.topRight + const Offset(-cornerLength, 0), paint);
-    canvas.drawLine(
-        scanRect.topRight, scanRect.topRight + const Offset(0, cornerLength), paint);
+    canvas.drawLine(scanRect.topRight,
+        scanRect.topRight + const Offset(-cornerLength, 0), paint);
+    canvas.drawLine(scanRect.topRight,
+        scanRect.topRight + const Offset(0, cornerLength), paint);
 
     // Bottom-left
     canvas.drawLine(scanRect.bottomLeft,
@@ -1216,10 +1215,7 @@ class _QuickSellSheetState extends State<_QuickSellSheet> {
     final total = widget.product.sellingPrice * _quantity;
 
     return Container(
-      padding: EdgeInsets.fromLTRB(
-          AppSizes.xxl,
-          AppSizes.xxl,
-          AppSizes.xxl,
+      padding: EdgeInsets.fromLTRB(AppSizes.xxl, AppSizes.xxl, AppSizes.xxl,
           MediaQuery.of(context).padding.bottom + AppSizes.lg),
       decoration: const BoxDecoration(
         color: AppColors.white,
@@ -1302,9 +1298,8 @@ class _QuickSellSheetState extends State<_QuickSellSheet> {
               children: [
                 _QtyButton(
                   icon: Icons.remove_rounded,
-                  onTap: _quantity > 1
-                      ? () => setState(() => _quantity--)
-                      : null,
+                  onTap:
+                      _quantity > 1 ? () => setState(() => _quantity--) : null,
                 ),
                 Column(
                   mainAxisSize: MainAxisSize.min,
@@ -1338,8 +1333,8 @@ class _QuickSellSheetState extends State<_QuickSellSheet> {
                 const SizedBox(width: 4),
                 Text(
                   'Exceeds available stock',
-                  style: AppTypography.bodySmall
-                      .copyWith(color: AppColors.error),
+                  style:
+                      AppTypography.bodySmall.copyWith(color: AppColors.error),
                 ),
               ],
             ),
@@ -1450,10 +1445,7 @@ class _RestockSheetState extends State<_RestockSheet> {
       padding:
           EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
-        padding: EdgeInsets.fromLTRB(
-            AppSizes.xxl,
-            AppSizes.xxl,
-            AppSizes.xxl,
+        padding: EdgeInsets.fromLTRB(AppSizes.xxl, AppSizes.xxl, AppSizes.xxl,
             MediaQuery.of(context).padding.bottom + AppSizes.lg),
         decoration: const BoxDecoration(
           color: AppColors.white,
@@ -1519,8 +1511,7 @@ class _RestockSheetState extends State<_RestockSheet> {
                     Text('Current Stock',
                         style: AppTypography.bodyMedium
                             .copyWith(color: AppColors.textSecondary)),
-                    Text(
-                        '${widget.product.quantity} ${widget.product.unit}',
+                    Text('${widget.product.quantity} ${widget.product.unit}',
                         style: AppTypography.labelLarge),
                   ],
                 ),
@@ -1541,8 +1532,8 @@ class _RestockSheetState extends State<_RestockSheet> {
                     borderRadius: BorderRadius.circular(10),
                     borderSide: BorderSide.none,
                   ),
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 14),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 ),
               ),
               const SizedBox(height: AppSizes.lg),
@@ -1560,8 +1551,8 @@ class _RestockSheetState extends State<_RestockSheet> {
                     borderRadius: BorderRadius.circular(10),
                     borderSide: BorderSide.none,
                   ),
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 14),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 ),
               ),
               const SizedBox(height: AppSizes.lg),
@@ -1580,8 +1571,8 @@ class _RestockSheetState extends State<_RestockSheet> {
                     borderRadius: BorderRadius.circular(10),
                     borderSide: BorderSide.none,
                   ),
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 14),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 ),
               ),
               const SizedBox(height: AppSizes.xxl),
@@ -1600,8 +1591,7 @@ class _RestockSheetState extends State<_RestockSheet> {
                           if (qty == null || qty <= 0) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content:
-                                    Text('Enter a valid quantity'),
+                                content: Text('Enter a valid quantity'),
                                 backgroundColor: AppColors.warning,
                               ),
                             );
