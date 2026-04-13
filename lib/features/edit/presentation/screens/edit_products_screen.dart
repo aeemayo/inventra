@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_sizes.dart';
 import '../../../auth/presentation/controllers/auth_controller.dart';
@@ -17,6 +19,7 @@ class EditProductsScreen extends ConsumerStatefulWidget {
 class _EditProductsScreenState extends ConsumerState<EditProductsScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _query = '';
+  bool _isLaunchingScanner = false;
 
   @override
   void dispose() {
@@ -167,6 +170,57 @@ class _EditProductsScreenState extends ConsumerState<EditProductsScreen> {
     return DateTime(year, month, day);
   }
 
+  Future<void> _scanBarcodeForSearch() async {
+    if (_isLaunchingScanner) return;
+    setState(() => _isLaunchingScanner = true);
+
+    try {
+      var status = await Permission.camera.status;
+      if (!status.isGranted) {
+        status = await Permission.camera.request();
+      }
+
+      if (!mounted) return;
+
+      if (!status.isGranted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              status.isPermanentlyDenied
+                  ? 'Camera permission is blocked. Enable it from app settings.'
+                  : 'Camera permission is required to scan barcodes.',
+            ),
+            backgroundColor: AppColors.warning,
+            action: status.isPermanentlyDenied
+                ? SnackBarAction(
+                    label: 'Settings',
+                    textColor: Colors.white,
+                    onPressed: openAppSettings,
+                  )
+                : null,
+          ),
+        );
+        return;
+      }
+
+      final scannedCode = await Navigator.of(context).push<String>(
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => const _BarcodeSearchScannerScreen(),
+        ),
+      );
+
+      if (!mounted || scannedCode == null || scannedCode.isEmpty) return;
+
+      _searchController.text = scannedCode;
+      setState(() => _query = scannedCode);
+    } finally {
+      if (mounted) {
+        setState(() => _isLaunchingScanner = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final productsAsync = ref.watch(productsProvider);
@@ -219,6 +273,23 @@ class _EditProductsScreenState extends ConsumerState<EditProductsScreen> {
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide(color: Colors.grey.shade200),
                 ),
+              ),
+            ),
+            const SizedBox(height: AppSizes.md),
+            Align(
+              alignment: Alignment.centerRight,
+              child: OutlinedButton.icon(
+                onPressed: _isLaunchingScanner ? null : _scanBarcodeForSearch,
+                icon: _isLaunchingScanner
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.qr_code_scanner_rounded),
+                label: Text(_isLaunchingScanner
+                    ? 'Opening scanner...'
+                    : 'Scan barcode'),
               ),
             ),
             const SizedBox(height: AppSizes.lg),
@@ -303,6 +374,86 @@ class _EditProductsScreenState extends ConsumerState<EditProductsScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _BarcodeSearchScannerScreen extends StatefulWidget {
+  const _BarcodeSearchScannerScreen();
+
+  @override
+  State<_BarcodeSearchScannerScreen> createState() =>
+      _BarcodeSearchScannerScreenState();
+}
+
+class _BarcodeSearchScannerScreenState
+    extends State<_BarcodeSearchScannerScreen> {
+  late final MobileScannerController _controller;
+  bool _hasResult = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = MobileScannerController(
+      detectionSpeed: DetectionSpeed.normal,
+      facing: CameraFacing.back,
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _handleDetect(BarcodeCapture capture) {
+    if (_hasResult) return;
+
+    for (final barcode in capture.barcodes) {
+      final code = barcode.rawValue ?? barcode.displayValue;
+      if (code == null || code.isEmpty) {
+        continue;
+      }
+
+      _hasResult = true;
+      Navigator.of(context).pop(code);
+      return;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Scan Barcode'),
+      ),
+      body: Stack(
+        children: [
+          MobileScanner(
+            controller: _controller,
+            onDetect: _handleDetect,
+          ),
+          const Positioned(
+            left: 16,
+            right: 16,
+            bottom: 24,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Color(0xB3000000),
+                borderRadius: BorderRadius.all(Radius.circular(10)),
+              ),
+              child: Padding(
+                padding: EdgeInsets.all(12),
+                child: Text(
+                  'Align the barcode in the frame. The code will be applied automatically.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
