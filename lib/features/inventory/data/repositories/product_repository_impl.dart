@@ -11,6 +11,11 @@ class ProductRepositoryImpl implements ProductRepository {
   ProductRepositoryImpl({FirebaseFirestore? firestore})
       : _firestore = firestore ?? FirebaseFirestore.instance;
 
+  String _cleanLookup(String value) => value.trim();
+
+  String _normalizedLookup(String value) =>
+      value.replaceAll(RegExp(r'[^A-Za-z0-9]'), '').toLowerCase();
+
   @override
   Stream<List<Product>> watchProducts(String shopId) {
     return _firestore
@@ -34,10 +39,13 @@ class ProductRepositoryImpl implements ProductRepository {
 
   @override
   Future<Product?> findByBarcode(String shopId, String barcode) async {
+    final cleanedBarcode = _cleanLookup(barcode);
+    if (cleanedBarcode.isEmpty) return null;
+
     // Search by barcode field first
     var query = await _firestore
         .collection(FirestorePaths.products(shopId))
-        .where('barcode', isEqualTo: barcode)
+        .where('barcode', isEqualTo: cleanedBarcode)
         .limit(1)
         .get();
 
@@ -48,12 +56,32 @@ class ProductRepositoryImpl implements ProductRepository {
     // Fallback: search by SKU
     query = await _firestore
         .collection(FirestorePaths.products(shopId))
-        .where('sku', isEqualTo: barcode)
+        .where('sku', isEqualTo: cleanedBarcode)
         .limit(1)
         .get();
 
     if (query.docs.isNotEmpty) {
       return ProductModel.fromFirestore(query.docs.first).toEntity();
+    }
+
+    // Last-resort fallback for formatting mismatches (spaces, hyphens, case).
+    final normalizedInput = _normalizedLookup(cleanedBarcode);
+    if (normalizedInput.isEmpty) return null;
+
+    final snapshot =
+        await _firestore.collection(FirestorePaths.products(shopId)).get();
+
+    for (final doc in snapshot.docs) {
+      final model = ProductModel.fromFirestore(doc);
+      final normalizedSku = _normalizedLookup(model.sku);
+      final normalizedBarcode =
+          model.barcode == null ? '' : _normalizedLookup(model.barcode!);
+
+      if (normalizedInput == normalizedSku ||
+          (normalizedBarcode.isNotEmpty &&
+              normalizedInput == normalizedBarcode)) {
+        return model.toEntity();
+      }
     }
 
     return null;
@@ -89,9 +117,8 @@ class ProductRepositoryImpl implements ProductRepository {
   Future<void> updateStock(
       String shopId, String productId, int quantityChange) async {
     await _firestore.runTransaction((transaction) async {
-      final docRef = _firestore
-          .collection(FirestorePaths.products(shopId))
-          .doc(productId);
+      final docRef =
+          _firestore.collection(FirestorePaths.products(shopId)).doc(productId);
       final snapshot = await transaction.get(docRef);
 
       if (!snapshot.exists) {
@@ -117,9 +144,8 @@ class ProductRepositoryImpl implements ProductRepository {
     // Firestore doesn't support full-text search natively.
     // We fetch all and filter client-side for now.
     // For production, use Algolia or Typesense integration.
-    final snapshot = await _firestore
-        .collection(FirestorePaths.products(shopId))
-        .get();
+    final snapshot =
+        await _firestore.collection(FirestorePaths.products(shopId)).get();
 
     final lowerQuery = query.toLowerCase();
     return snapshot.docs
@@ -146,15 +172,16 @@ class ProductRepositoryImpl implements ProductRepository {
                 name: data['name'] as String? ?? '',
                 description: data['description'] as String?,
                 productCount: (data['productCount'] as num?)?.toInt() ?? 0,
-                createdAt:
-                    (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+                createdAt: (data['createdAt'] as Timestamp?)?.toDate() ??
+                    DateTime.now(),
               );
             }).toList());
   }
 
   @override
   Future<Category> addCategory(String shopId, Category category) async {
-    final docRef = _firestore.collection(FirestorePaths.categories(shopId)).doc();
+    final docRef =
+        _firestore.collection(FirestorePaths.categories(shopId)).doc();
     await docRef.set({
       'name': category.name,
       'description': category.description,

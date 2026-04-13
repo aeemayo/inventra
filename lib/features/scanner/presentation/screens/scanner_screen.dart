@@ -188,7 +188,7 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen>
           );
 
       if (product != null) {
-        _showProductFoundSheet(product, barcode);
+        _showQuickSellSheet(product);
       } else {
         _showProductNotFoundSheet(barcode);
       }
@@ -203,36 +203,6 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen>
     } finally {
       if (mounted) setState(() => _isProcessing = false);
     }
-  }
-
-  // ── Product Found Sheet ──
-
-  void _showProductFoundSheet(Product product, String barcode) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => _ProductFoundSheet(
-        product: product,
-        barcode: barcode,
-        onSell: () {
-          Navigator.pop(ctx);
-          _showQuickSellSheet(product);
-        },
-        onRestock: () {
-          Navigator.pop(ctx);
-          _showRestockSheet(product);
-        },
-        onAdjust: () {
-          Navigator.pop(ctx);
-          _showStockAdjustDialog(product);
-        },
-        onViewHistory: () {
-          Navigator.pop(ctx);
-          context.push('/transaction-logs');
-        },
-      ),
-    );
   }
 
   // ── Product Not Found Sheet ──
@@ -333,104 +303,6 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen>
             setState(() => _lastScannedCode = null);
           }
         },
-      ),
-    );
-  }
-
-  // ── Restock Sheet ──
-
-  void _showRestockSheet(Product product) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => _RestockSheet(
-        product: product,
-        onConfirm: (quantity, note, supplier) async {
-          Navigator.pop(ctx);
-          final success =
-              await ref.read(scannerControllerProvider.notifier).restockProduct(
-                    productId: product.id,
-                    productName: product.name,
-                    quantity: quantity,
-                    note: note,
-                    supplier: supplier,
-                  );
-          if (mounted) {
-            final state = ref.read(scannerControllerProvider);
-            _showResultSnackBar(state.message ?? '', success);
-            ref.read(scannerControllerProvider.notifier).reset();
-            setState(() => _lastScannedCode = null);
-          }
-        },
-      ),
-    );
-  }
-
-  // ── Stock Adjust Dialog ──
-
-  void _showStockAdjustDialog(Product product) {
-    final qtyController = TextEditingController();
-    final reasonController = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Adjust ${product.name}'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Current stock: ${product.quantity} ${product.unit}',
-                style: AppTypography.bodyMedium),
-            const SizedBox(height: 16),
-            TextField(
-              controller: qtyController,
-              keyboardType: const TextInputType.numberWithOptions(signed: true),
-              decoration: const InputDecoration(
-                labelText: 'Adjustment',
-                hintText: '+5 or -3',
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: reasonController,
-              decoration: const InputDecoration(
-                labelText: 'Reason (optional)',
-                hintText: 'e.g. damaged, miscounted',
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final qty = int.tryParse(qtyController.text);
-              if (qty != null && qty != 0) {
-                Navigator.pop(ctx);
-                final success = await ref
-                    .read(scannerControllerProvider.notifier)
-                    .adjustStock(
-                      productId: product.id,
-                      productName: product.name,
-                      quantityChange: qty,
-                      reason: reasonController.text.trim().isEmpty
-                          ? null
-                          : reasonController.text.trim(),
-                    );
-                if (mounted) {
-                  final state = ref.read(scannerControllerProvider);
-                  _showResultSnackBar(state.message ?? '', success);
-                  ref.read(scannerControllerProvider.notifier).reset();
-                  setState(() => _lastScannedCode = null);
-                }
-              }
-            },
-            child: const Text('Adjust'),
-          ),
-        ],
       ),
     );
   }
@@ -1019,175 +891,6 @@ class _ScanOverlayPainter extends CustomPainter {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Product Found Sheet
-// ═══════════════════════════════════════════════════════════════
-
-class _ProductFoundSheet extends StatelessWidget {
-  final Product product;
-  final String barcode;
-  final VoidCallback onSell;
-  final VoidCallback onRestock;
-  final VoidCallback onAdjust;
-  final VoidCallback onViewHistory;
-
-  const _ProductFoundSheet({
-    required this.product,
-    required this.barcode,
-    required this.onSell,
-    required this.onRestock,
-    required this.onAdjust,
-    required this.onViewHistory,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(AppSizes.xxl),
-      decoration: const BoxDecoration(
-        color: AppColors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Drag handle
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: AppColors.divider,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(height: AppSizes.xl),
-
-          // Product info
-          Row(
-            children: [
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  color: AppColors.inputFill,
-                  borderRadius: BorderRadius.circular(12),
-                  image: product.imageUrl != null
-                      ? DecorationImage(
-                          image: NetworkImage(product.imageUrl!),
-                          fit: BoxFit.cover)
-                      : null,
-                ),
-                child: product.imageUrl == null
-                    ? const Icon(Icons.inventory_2_outlined,
-                        color: AppColors.textTertiary)
-                    : null,
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(product.name, style: AppTypography.h4),
-                    Text('SKU: ${product.sku}',
-                        style: AppTypography.bodySmall
-                            .copyWith(color: AppColors.textSecondary)),
-                    if (product.barcode != null)
-                      Text('Barcode: ${product.barcode}',
-                          style: AppTypography.bodySmall
-                              .copyWith(color: AppColors.textSecondary)),
-                    Row(
-                      children: [
-                        Text(Formatters.currency(product.sellingPrice),
-                            style: AppTypography.labelLarge),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: product.isOutOfStock
-                                ? AppColors.error.withValues(alpha: 0.12)
-                                : product.isLowStock
-                                    ? AppColors.warning.withValues(alpha: 0.12)
-                                    : AppColors.success.withValues(alpha: 0.12),
-                            borderRadius:
-                                BorderRadius.circular(AppSizes.radiusFull),
-                          ),
-                          child: Text(
-                            '${product.quantity} in stock',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: product.isOutOfStock
-                                  ? AppColors.error
-                                  : product.isLowStock
-                                      ? AppColors.warning
-                                      : AppColors.success,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSizes.xxl),
-
-          // Action buttons
-          Row(
-            children: [
-              Expanded(
-                child: AppButton(
-                  label: 'Sell Now',
-                  icon: Icons.point_of_sale_rounded,
-                  onPressed: product.isOutOfStock ? null : onSell,
-                  height: 44,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: AppButton(
-                  label: 'Restock',
-                  icon: Icons.add_box_outlined,
-                  isOutlined: true,
-                  onPressed: onRestock,
-                  height: 44,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: AppButton(
-                  label: 'Adjust',
-                  icon: Icons.tune_rounded,
-                  isOutlined: true,
-                  onPressed: onAdjust,
-                  height: 44,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: AppButton(
-                  label: 'History',
-                  icon: Icons.history_rounded,
-                  isOutlined: true,
-                  onPressed: onViewHistory,
-                  height: 44,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: MediaQuery.of(context).padding.bottom + 8),
-        ],
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
 // Quick Sell Sheet
 // ═══════════════════════════════════════════════════════════════
 
@@ -1205,10 +908,18 @@ class _QuickSellSheet extends StatefulWidget {
 }
 
 class _QuickSellSheetState extends State<_QuickSellSheet> {
-  int _quantity = 1;
+  final _quantityController = TextEditingController(text: '1');
   bool _isProcessing = false;
 
+  int get _quantity => int.tryParse(_quantityController.text.trim()) ?? 0;
+
   bool get _canSell => _quantity <= widget.product.quantity && _quantity > 0;
+
+  @override
+  void dispose() {
+    _quantityController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1252,8 +963,8 @@ class _QuickSellSheetState extends State<_QuickSellSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Quick Sale', style: AppTypography.h4),
-                    Text(widget.product.name,
+                    Text('New Sale', style: AppTypography.h4),
+                    Text('Enter quantity to complete sale',
                         style: AppTypography.bodySmall
                             .copyWith(color: AppColors.textSecondary)),
                   ],
@@ -1261,7 +972,41 @@ class _QuickSellSheetState extends State<_QuickSellSheet> {
               ),
             ],
           ),
-          const SizedBox(height: AppSizes.xxl),
+          const SizedBox(height: AppSizes.lg),
+
+          // Product details required for operator confirmation
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.inputFill,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Product Name',
+                    style: AppTypography.bodySmall
+                        .copyWith(color: AppColors.textSecondary)),
+                const SizedBox(height: 2),
+                Text(widget.product.name, style: AppTypography.labelLarge),
+                const SizedBox(height: 8),
+                Text('Product ID',
+                    style: AppTypography.bodySmall
+                        .copyWith(color: AppColors.textSecondary)),
+                const SizedBox(height: 2),
+                Text(widget.product.id, style: AppTypography.bodyMedium),
+                const SizedBox(height: 8),
+                Text('Selling Price',
+                    style: AppTypography.bodySmall
+                        .copyWith(color: AppColors.textSecondary)),
+                const SizedBox(height: 2),
+                Text(Formatters.currency(widget.product.sellingPrice),
+                    style: AppTypography.labelLarge),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSizes.lg),
 
           // Stock info
           Container(
@@ -1281,49 +1026,46 @@ class _QuickSellSheetState extends State<_QuickSellSheet> {
               ],
             ),
           ),
-          const SizedBox(height: AppSizes.xl),
+          const SizedBox(height: AppSizes.lg),
 
-          // Quantity picker
+          // Quantity input
           Text('Quantity', style: AppTypography.labelLarge),
-          const SizedBox(height: AppSizes.md),
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.cardBorder),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _QtyButton(
-                  icon: Icons.remove_rounded,
-                  onTap:
-                      _quantity > 1 ? () => setState(() => _quantity--) : null,
-                ),
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('$_quantity',
-                        style: const TextStyle(
-                            fontSize: 24, fontWeight: FontWeight.w800)),
-                    Text(widget.product.unit,
-                        style: AppTypography.bodySmall
-                            .copyWith(color: AppColors.textTertiary)),
-                  ],
-                ),
-                _QtyButton(
-                  icon: Icons.add_rounded,
-                  onTap: _quantity < widget.product.quantity
-                      ? () => setState(() => _quantity++)
-                      : null,
-                ),
-              ],
+          const SizedBox(height: AppSizes.sm),
+          TextField(
+            controller: _quantityController,
+            keyboardType: TextInputType.number,
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              hintText: 'Enter quantity',
+              helperText: 'Unit: ${widget.product.unit}',
+              filled: true,
+              fillColor: AppColors.inputFill,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             ),
           ),
 
           // Insufficient stock warning
-          if (!_canSell && _quantity > 0) ...[
+          if (_quantity <= 0 && _quantityController.text.trim().isNotEmpty) ...[
+            const SizedBox(height: AppSizes.sm),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.warning_rounded,
+                    color: AppColors.error, size: 14),
+                const SizedBox(width: 4),
+                Text(
+                  'Enter a valid quantity',
+                  style:
+                      AppTypography.bodySmall.copyWith(color: AppColors.error),
+                ),
+              ],
+            ),
+          ] else if (!_canSell && _quantity > 0) ...[
             const SizedBox(height: AppSizes.sm),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -1402,245 +1144,6 @@ class _QuickSellSheetState extends State<_QuickSellSheet> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// Restock Sheet
-// ═══════════════════════════════════════════════════════════════
-
-class _RestockSheet extends StatefulWidget {
-  final Product product;
-  final Future<void> Function(int quantity, String? note, String? supplier)
-      onConfirm;
-
-  const _RestockSheet({
-    required this.product,
-    required this.onConfirm,
-  });
-
-  @override
-  State<_RestockSheet> createState() => _RestockSheetState();
-}
-
-class _RestockSheetState extends State<_RestockSheet> {
-  final _qtyController = TextEditingController();
-  final _noteController = TextEditingController();
-  final _supplierController = TextEditingController();
-  bool _isProcessing = false;
-
-  @override
-  void dispose() {
-    _qtyController.dispose();
-    _noteController.dispose();
-    _supplierController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding:
-          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-      child: Container(
-        padding: EdgeInsets.fromLTRB(AppSizes.xxl, AppSizes.xxl, AppSizes.xxl,
-            MediaQuery.of(context).padding.bottom + AppSizes.lg),
-        decoration: const BoxDecoration(
-          color: AppColors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.divider,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: AppSizes.xl),
-
-              // Header
-              Row(
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: AppColors.primarySurface,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(Icons.add_box_outlined,
-                        color: AppColors.primary, size: 22),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Restock', style: AppTypography.h4),
-                        Text(widget.product.name,
-                            style: AppTypography.bodySmall
-                                .copyWith(color: AppColors.textSecondary)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSizes.lg),
-
-              // Current stock
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                decoration: BoxDecoration(
-                  color: AppColors.inputFill,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Current Stock',
-                        style: AppTypography.bodyMedium
-                            .copyWith(color: AppColors.textSecondary)),
-                    Text('${widget.product.quantity} ${widget.product.unit}',
-                        style: AppTypography.labelLarge),
-                  ],
-                ),
-              ),
-              const SizedBox(height: AppSizes.xl),
-
-              // Quantity
-              Text('Quantity to Add', style: AppTypography.labelLarge),
-              const SizedBox(height: AppSizes.sm),
-              TextField(
-                controller: _qtyController,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  hintText: 'Enter quantity',
-                  filled: true,
-                  fillColor: AppColors.inputFill,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                ),
-              ),
-              const SizedBox(height: AppSizes.lg),
-
-              // Supplier
-              Text('Supplier (Optional)', style: AppTypography.labelLarge),
-              const SizedBox(height: AppSizes.sm),
-              TextField(
-                controller: _supplierController,
-                decoration: InputDecoration(
-                  hintText: 'e.g. ABC Distributors',
-                  filled: true,
-                  fillColor: AppColors.inputFill,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                ),
-              ),
-              const SizedBox(height: AppSizes.lg),
-
-              // Note
-              Text('Note (Optional)', style: AppTypography.labelLarge),
-              const SizedBox(height: AppSizes.sm),
-              TextField(
-                controller: _noteController,
-                maxLines: 2,
-                decoration: InputDecoration(
-                  hintText: 'e.g. Weekly restock from supplier',
-                  filled: true,
-                  fillColor: AppColors.inputFill,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide.none,
-                  ),
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                ),
-              ),
-              const SizedBox(height: AppSizes.xxl),
-
-              // Confirm
-              SizedBox(
-                width: double.infinity,
-                child: AppButton(
-                  label: _isProcessing ? 'Processing...' : 'Confirm Restock',
-                  icon: Icons.check_circle_outline_rounded,
-                  isLoading: _isProcessing,
-                  onPressed: _isProcessing
-                      ? null
-                      : () async {
-                          final qty = int.tryParse(_qtyController.text);
-                          if (qty == null || qty <= 0) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Enter a valid quantity'),
-                                backgroundColor: AppColors.warning,
-                              ),
-                            );
-                            return;
-                          }
-                          setState(() => _isProcessing = true);
-                          final note = _noteController.text.trim().isEmpty
-                              ? null
-                              : _noteController.text.trim();
-                          final supplier =
-                              _supplierController.text.trim().isEmpty
-                                  ? null
-                                  : _supplierController.text.trim();
-                          await widget.onConfirm(qty, note, supplier);
-                        },
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// Quantity Button
-// ═══════════════════════════════════════════════════════════════
-
-class _QtyButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback? onTap;
-
-  const _QtyButton({required this.icon, this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final enabled = onTap != null;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 50,
-        height: 50,
-        decoration: BoxDecoration(
-          color: enabled ? AppColors.inputFill : AppColors.divider,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Icon(icon,
-            color: enabled ? AppColors.textPrimary : AppColors.textTertiary),
       ),
     );
   }
