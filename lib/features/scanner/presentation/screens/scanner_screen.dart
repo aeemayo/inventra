@@ -2,20 +2,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_sizes.dart';
 import '../../../../core/constants/app_typography.dart';
 import '../../../../core/router/scanner_route_access.dart';
 import '../../../../core/utils/debouncer.dart';
+import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../inventory/presentation/controllers/inventory_controller.dart';
 import '../../../inventory/domain/entities/product.dart';
+import '../controllers/scanner_controller.dart';
 
-/// Scanner screen matching Figma:
-/// - Dark camera view
-/// - Blue rectangular scan frame overlay
-/// - "Identify Product" label
-/// - Bottom panel with action buttons
+/// Scanner screen with live camera barcode scanning:
+/// - Camera permission handling
+/// - Flashlight toggle
+/// - Manual barcode entry
+/// - Debounced scan detection
+/// - Product lookup (cache-first via Firestore offline)
+/// - Inline quick-sell and restock flows with atomic transactions
+/// - Scan history persistence
 class ScannerScreen extends ConsumerStatefulWidget {
   final String? reason;
 
@@ -25,22 +31,24 @@ class ScannerScreen extends ConsumerStatefulWidget {
   ConsumerState<ScannerScreen> createState() => _ScannerScreenState();
 }
 
-class _ScannerScreenState extends ConsumerState<ScannerScreen> {
+class _ScannerScreenState extends ConsumerState<ScannerScreen>
+    with WidgetsBindingObserver {
   MobileScannerController? _cameraController;
-  final _debouncer = Debouncer(delay: const Duration(milliseconds: 500));
+  final _debouncer = Debouncer(delay: const Duration(milliseconds: 800));
   bool _isProcessing = false;
   bool _torchEnabled = false;
   String? _lastScannedCode;
   ScanIntent? _selectedIntent;
 
+  // Camera permission state
+  _CameraPermState _permState = _CameraPermState.checking;
+
   @override
   void initState() {
     super.initState();
-    _cameraController = MobileScannerController(
-      detectionSpeed: DetectionSpeed.normal,
-      facing: CameraFacing.back,
-      torchEnabled: false,
-    );
+    WidgetsBinding.instance.addObserver(this);
+    _checkCameraPermission();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && widget.reason == 'restricted') {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -60,10 +68,56 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Re-check permission when returning from settings
+    if (state == AppLifecycleState.resumed &&
+        _permState == _CameraPermState.permanentlyDenied) {
+      _checkCameraPermission();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _debouncer.dispose();
     _cameraController?.dispose();
     super.dispose();
+  }
+
+  Future<void> _checkCameraPermission() async {
+    setState(() => _permState = _CameraPermState.checking);
+
+    var status = await Permission.camera.status;
+
+    if (status.isGranted) {
+      _initCamera();
+      return;
+    }
+
+    if (status.isPermanentlyDenied) {
+      setState(() => _permState = _CameraPermState.permanentlyDenied);
+      return;
+    }
+
+    // Request permission
+    status = await Permission.camera.request();
+
+    if (status.isGranted) {
+      _initCamera();
+    } else if (status.isPermanentlyDenied) {
+      setState(() => _permState = _CameraPermState.permanentlyDenied);
+    } else {
+      setState(() => _permState = _CameraPermState.denied);
+    }
+  }
+
+  void _initCamera() {
+    _cameraController = MobileScannerController(
+      detectionSpeed: DetectionSpeed.normal,
+      facing: CameraFacing.back,
+      torchEnabled: false,
+    );
+    setState(() => _permState = _CameraPermState.granted);
   }
 
   void _onBarcodeDetected(BarcodeCapture capture) {
@@ -74,7 +128,7 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
     final code = barcodes.first.rawValue;
     if (code == null || code.isEmpty) return;
 
-    // Debounce repeated scans
+    // Debounce repeated scans of the same code
     if (code == _lastScannedCode) return;
 
     _debouncer.run(() => _processBarcode(code));
@@ -95,6 +149,12 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
     });
 
     if (selectedIntent == ScanIntent.addProduct) {
+      // Save scan history (unmatched — we're creating a new product)
+      ref.read(scannerControllerProvider.notifier).saveScanEntry(
+            barcodeValue: barcode,
+            scanIntent: 'addProduct',
+          );
+
       if (!mounted) return;
       ref
           .read(scannerRouteAccessProvider.notifier)
@@ -104,6 +164,7 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
       return;
     }
 
+    // Sale intent: look up product
     final shopId = ref.read(currentShopIdProvider);
     if (shopId == null) {
       setState(() => _isProcessing = false);
@@ -117,6 +178,14 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
 
       if (!mounted) return;
 
+      // Save scan history
+      ref.read(scannerControllerProvider.notifier).saveScanEntry(
+            barcodeValue: barcode,
+            scanIntent: 'sale',
+            matchedProductId: product?.id,
+            matchedProductName: product?.name,
+          );
+
       if (product != null) {
         _showProductFoundSheet(product, barcode);
       } else {
@@ -126,13 +195,16 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('Error: $e'), backgroundColor: AppColors.error),
+              content: Text('Lookup error: $e'),
+              backgroundColor: AppColors.error),
         );
       }
     } finally {
       if (mounted) setState(() => _isProcessing = false);
     }
   }
+
+  // ── Product Found Sheet ──
 
   void _showProductFoundSheet(Product product, String barcode) {
     showModalBottomSheet(
@@ -144,26 +216,25 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
         barcode: barcode,
         onSell: () {
           Navigator.pop(ctx);
-          ref
-              .read(scannerRouteAccessProvider.notifier)
-              .grant(ScannerProtectedRoute.newSale);
-          context.push('/new-sale', extra: product);
+          _showQuickSellSheet(product);
         },
         onRestock: () {
           Navigator.pop(ctx);
-          _showRestockDialog(product);
+          _showRestockSheet(product);
         },
         onAdjust: () {
           Navigator.pop(ctx);
           _showStockAdjustDialog(product);
         },
-        onViewDetail: () {
+        onViewHistory: () {
           Navigator.pop(ctx);
-          context.push('/inventory/${product.id}');
+          context.push('/transaction-logs');
         },
       ),
     );
   }
+
+  // ── Product Not Found Sheet ──
 
   void _showProductNotFoundSheet(String barcode) {
     showModalBottomSheet(
@@ -235,52 +306,72 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
     );
   }
 
-  void _showRestockDialog(Product product) {
-    final qtyController = TextEditingController();
-    showDialog(
+  // ── Quick Sell Sheet ──
+
+  void _showQuickSellSheet(Product product) {
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Restock ${product.name}'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Current stock: ${product.quantity} ${product.unit}',
-                style: AppTypography.bodyMedium),
-            const SizedBox(height: 16),
-            TextField(
-              controller: qtyController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Add Quantity',
-                hintText: 'Enter quantity to add',
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final qty = int.tryParse(qtyController.text);
-              if (qty != null && qty > 0) {
-                Navigator.pop(ctx);
-                await ref
-                    .read(inventoryControllerProvider.notifier)
-                    .adjustStock(product.id, qty);
-              }
-            },
-            child: const Text('Restock'),
-          ),
-        ],
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _QuickSellSheet(
+        product: product,
+        onConfirm: (quantity) async {
+          Navigator.pop(ctx);
+          final success =
+              await ref.read(scannerControllerProvider.notifier).sellProduct(
+                    productId: product.id,
+                    productName: product.name,
+                    productSku: product.sku,
+                    unitPrice: product.sellingPrice,
+                    quantity: quantity,
+                  );
+          if (mounted) {
+            final state = ref.read(scannerControllerProvider);
+            _showResultSnackBar(state.message ?? '', success);
+            ref.read(scannerControllerProvider.notifier).reset();
+            setState(() => _lastScannedCode = null);
+          }
+        },
       ),
     );
   }
 
+  // ── Restock Sheet ──
+
+  void _showRestockSheet(Product product) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _RestockSheet(
+        product: product,
+        onConfirm: (quantity, note, supplier) async {
+          Navigator.pop(ctx);
+          final success = await ref
+              .read(scannerControllerProvider.notifier)
+              .restockProduct(
+                productId: product.id,
+                productName: product.name,
+                quantity: quantity,
+                note: note,
+                supplier: supplier,
+              );
+          if (mounted) {
+            final state = ref.read(scannerControllerProvider);
+            _showResultSnackBar(state.message ?? '', success);
+            ref.read(scannerControllerProvider.notifier).reset();
+            setState(() => _lastScannedCode = null);
+          }
+        },
+      ),
+    );
+  }
+
+  // ── Stock Adjust Dialog ──
+
   void _showStockAdjustDialog(Product product) {
     final qtyController = TextEditingController();
+    final reasonController = TextEditingController();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -299,6 +390,14 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
                 hintText: '+5 or -3',
               ),
             ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: reasonController,
+              decoration: const InputDecoration(
+                labelText: 'Reason (optional)',
+                hintText: 'e.g. damaged, miscounted',
+              ),
+            ),
           ],
         ),
         actions: [
@@ -311,9 +410,22 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
               final qty = int.tryParse(qtyController.text);
               if (qty != null && qty != 0) {
                 Navigator.pop(ctx);
-                await ref
-                    .read(inventoryControllerProvider.notifier)
-                    .adjustStock(product.id, qty);
+                final success = await ref
+                    .read(scannerControllerProvider.notifier)
+                    .adjustStock(
+                      productId: product.id,
+                      productName: product.name,
+                      quantityChange: qty,
+                      reason: reasonController.text.trim().isEmpty
+                          ? null
+                          : reasonController.text.trim(),
+                    );
+                if (mounted) {
+                  final state = ref.read(scannerControllerProvider);
+                  _showResultSnackBar(state.message ?? '', success);
+                  ref.read(scannerControllerProvider.notifier).reset();
+                  setState(() => _lastScannedCode = null);
+                }
               }
             },
             child: const Text('Adjust'),
@@ -322,6 +434,8 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
       ),
     );
   }
+
+  // ── Manual Entry Dialog ──
 
   void _showManualEntry() {
     final controller = TextEditingController();
@@ -357,6 +471,8 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
     );
   }
 
+  // ── Intent Selection ──
+
   Future<void> _selectScanIntent() async {
     final selected = await showModalBottomSheet<ScanIntent>(
       context: context,
@@ -382,8 +498,40 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
     );
   }
 
+  void _showResultSnackBar(String message, bool success) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: success ? AppColors.success : AppColors.error,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Permission states
+    if (_permState == _CameraPermState.checking) {
+      return const Scaffold(
+        backgroundColor: AppColors.scannerDark,
+        body: Center(
+          child: CircularProgressIndicator(color: AppColors.primaryLight),
+        ),
+      );
+    }
+
+    if (_permState == _CameraPermState.denied ||
+        _permState == _CameraPermState.permanentlyDenied) {
+      return _CameraPermissionView(
+        isPermanent: _permState == _CameraPermState.permanentlyDenied,
+        onRequestPermission: _checkCameraPermission,
+        onOpenSettings: () => openAppSettings(),
+        onBack: () => context.go('/dashboard'),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.scannerDark,
       body: Stack(
@@ -441,6 +589,24 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
               ),
             ),
           ),
+
+          // ── Processing indicator ──
+          if (_isProcessing)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Container(
+                color: Colors.black.withValues(alpha: 0.3),
+                child: const Center(
+                  child: CircularProgressIndicator(
+                    color: AppColors.primaryLight,
+                    strokeWidth: 3,
+                  ),
+                ),
+              ),
+            ),
 
           // ── Bottom Panel ──
           Positioned(
@@ -548,6 +714,95 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
     );
   }
 }
+
+// ═══════════════════════════════════════════════════════════════
+// Camera Permission State
+// ═══════════════════════════════════════════════════════════════
+
+enum _CameraPermState { checking, granted, denied, permanentlyDenied }
+
+class _CameraPermissionView extends StatelessWidget {
+  final bool isPermanent;
+  final VoidCallback onRequestPermission;
+  final VoidCallback onOpenSettings;
+  final VoidCallback onBack;
+
+  const _CameraPermissionView({
+    required this.isPermanent,
+    required this.onRequestPermission,
+    required this.onOpenSettings,
+    required this.onBack,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.scannerDark,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSizes.xxxl),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Icon(Icons.camera_alt_outlined,
+                    color: AppColors.warning, size: 40),
+              ),
+              const SizedBox(height: AppSizes.xxl),
+              Text(
+                'Camera Permission Required',
+                style: AppTypography.h3.copyWith(color: AppColors.white),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: AppSizes.md),
+              Text(
+                isPermanent
+                    ? 'Camera access has been permanently denied. Please enable it in your device settings to use the scanner.'
+                    : 'Inventra needs camera access to scan barcodes and QR codes for product identification.',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: AppColors.white.withValues(alpha: 0.7),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: AppSizes.xxxl),
+              SizedBox(
+                width: double.infinity,
+                child: AppButton(
+                  label: isPermanent ? 'Open Settings' : 'Grant Permission',
+                  icon: isPermanent
+                      ? Icons.settings_rounded
+                      : Icons.check_circle_outline_rounded,
+                  onPressed:
+                      isPermanent ? onOpenSettings : onRequestPermission,
+                ),
+              ),
+              const SizedBox(height: AppSizes.md),
+              SizedBox(
+                width: double.infinity,
+                child: AppButton(
+                  label: 'Go Back',
+                  isOutlined: true,
+                  foregroundColor: AppColors.white,
+                  onPressed: onBack,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Scan Intent
+// ═══════════════════════════════════════════════════════════════
 
 enum ScanIntent { addProduct, newSale }
 
@@ -685,6 +940,10 @@ class _IntentOptionTile extends StatelessWidget {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// Scan Overlay
+// ═══════════════════════════════════════════════════════════════
+
 class _ScanOverlay extends StatelessWidget {
   final bool isProcessing;
 
@@ -723,37 +982,36 @@ class _ScanOverlayPainter extends CustomPainter {
         overlayPaint);
 
     // Scan frame corners
-    final cornerLength = 30.0;
-    final cornerWidth = 3.0;
+    const cornerLength = 30.0;
     final paint = Paint()
       ..color = isProcessing ? AppColors.primaryLight : AppColors.scannerBlue
-      ..strokeWidth = cornerWidth
+      ..strokeWidth = 3.0
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
 
     // Top-left
     canvas.drawLine(
-        scanRect.topLeft, scanRect.topLeft + Offset(cornerLength, 0), paint);
+        scanRect.topLeft, scanRect.topLeft + const Offset(cornerLength, 0), paint);
     canvas.drawLine(
-        scanRect.topLeft, scanRect.topLeft + Offset(0, cornerLength), paint);
+        scanRect.topLeft, scanRect.topLeft + const Offset(0, cornerLength), paint);
 
     // Top-right
     canvas.drawLine(
-        scanRect.topRight, scanRect.topRight + Offset(-cornerLength, 0), paint);
+        scanRect.topRight, scanRect.topRight + const Offset(-cornerLength, 0), paint);
     canvas.drawLine(
-        scanRect.topRight, scanRect.topRight + Offset(0, cornerLength), paint);
+        scanRect.topRight, scanRect.topRight + const Offset(0, cornerLength), paint);
 
     // Bottom-left
     canvas.drawLine(scanRect.bottomLeft,
-        scanRect.bottomLeft + Offset(cornerLength, 0), paint);
+        scanRect.bottomLeft + const Offset(cornerLength, 0), paint);
     canvas.drawLine(scanRect.bottomLeft,
-        scanRect.bottomLeft + Offset(0, -cornerLength), paint);
+        scanRect.bottomLeft + const Offset(0, -cornerLength), paint);
 
     // Bottom-right
     canvas.drawLine(scanRect.bottomRight,
-        scanRect.bottomRight + Offset(-cornerLength, 0), paint);
+        scanRect.bottomRight + const Offset(-cornerLength, 0), paint);
     canvas.drawLine(scanRect.bottomRight,
-        scanRect.bottomRight + Offset(0, -cornerLength), paint);
+        scanRect.bottomRight + const Offset(0, -cornerLength), paint);
   }
 
   @override
@@ -761,13 +1019,17 @@ class _ScanOverlayPainter extends CustomPainter {
       oldDelegate.isProcessing != isProcessing;
 }
 
+// ═══════════════════════════════════════════════════════════════
+// Product Found Sheet
+// ═══════════════════════════════════════════════════════════════
+
 class _ProductFoundSheet extends StatelessWidget {
   final Product product;
   final String barcode;
   final VoidCallback onSell;
   final VoidCallback onRestock;
   final VoidCallback onAdjust;
-  final VoidCallback onViewDetail;
+  final VoidCallback onViewHistory;
 
   const _ProductFoundSheet({
     required this.product,
@@ -775,7 +1037,7 @@ class _ProductFoundSheet extends StatelessWidget {
     required this.onSell,
     required this.onRestock,
     required this.onAdjust,
-    required this.onViewDetail,
+    required this.onViewHistory,
   });
 
   @override
@@ -829,9 +1091,13 @@ class _ProductFoundSheet extends StatelessWidget {
                     Text('SKU: ${product.sku}',
                         style: AppTypography.bodySmall
                             .copyWith(color: AppColors.textSecondary)),
+                    if (product.barcode != null)
+                      Text('Barcode: ${product.barcode}',
+                          style: AppTypography.bodySmall
+                              .copyWith(color: AppColors.textSecondary)),
                     Row(
                       children: [
-                        Text('\$${product.sellingPrice.toStringAsFixed(2)}',
+                        Text(Formatters.currency(product.sellingPrice),
                             style: AppTypography.labelLarge),
                         const SizedBox(width: 8),
                         Container(
@@ -906,10 +1172,10 @@ class _ProductFoundSheet extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: AppButton(
-                  label: 'View Detail',
-                  icon: Icons.info_outline_rounded,
+                  label: 'History',
+                  icon: Icons.history_rounded,
                   isOutlined: true,
-                  onPressed: onViewDetail,
+                  onPressed: onViewHistory,
                   height: 44,
                 ),
               ),
@@ -921,6 +1187,478 @@ class _ProductFoundSheet extends StatelessWidget {
     );
   }
 }
+
+// ═══════════════════════════════════════════════════════════════
+// Quick Sell Sheet
+// ═══════════════════════════════════════════════════════════════
+
+class _QuickSellSheet extends StatefulWidget {
+  final Product product;
+  final Future<void> Function(int quantity) onConfirm;
+
+  const _QuickSellSheet({
+    required this.product,
+    required this.onConfirm,
+  });
+
+  @override
+  State<_QuickSellSheet> createState() => _QuickSellSheetState();
+}
+
+class _QuickSellSheetState extends State<_QuickSellSheet> {
+  int _quantity = 1;
+  bool _isProcessing = false;
+
+  bool get _canSell => _quantity <= widget.product.quantity && _quantity > 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final total = widget.product.sellingPrice * _quantity;
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+          AppSizes.xxl,
+          AppSizes.xxl,
+          AppSizes.xxl,
+          MediaQuery.of(context).padding.bottom + AppSizes.lg),
+      decoration: const BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: AppColors.divider,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: AppSizes.xl),
+
+          // Header
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppColors.coral.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.point_of_sale_rounded,
+                    color: AppColors.coral, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Quick Sale', style: AppTypography.h4),
+                    Text(widget.product.name,
+                        style: AppTypography.bodySmall
+                            .copyWith(color: AppColors.textSecondary)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSizes.xxl),
+
+          // Stock info
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.inputFill,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Available Stock',
+                    style: AppTypography.bodyMedium
+                        .copyWith(color: AppColors.textSecondary)),
+                Text('${widget.product.quantity} ${widget.product.unit}',
+                    style: AppTypography.labelLarge),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSizes.xl),
+
+          // Quantity picker
+          Text('Quantity', style: AppTypography.labelLarge),
+          const SizedBox(height: AppSizes.md),
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.cardBorder),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _QtyButton(
+                  icon: Icons.remove_rounded,
+                  onTap: _quantity > 1
+                      ? () => setState(() => _quantity--)
+                      : null,
+                ),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('$_quantity',
+                        style: const TextStyle(
+                            fontSize: 24, fontWeight: FontWeight.w800)),
+                    Text(widget.product.unit,
+                        style: AppTypography.bodySmall
+                            .copyWith(color: AppColors.textTertiary)),
+                  ],
+                ),
+                _QtyButton(
+                  icon: Icons.add_rounded,
+                  onTap: _quantity < widget.product.quantity
+                      ? () => setState(() => _quantity++)
+                      : null,
+                ),
+              ],
+            ),
+          ),
+
+          // Insufficient stock warning
+          if (!_canSell && _quantity > 0) ...[
+            const SizedBox(height: AppSizes.sm),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.warning_rounded,
+                    color: AppColors.error, size: 14),
+                const SizedBox(width: 4),
+                Text(
+                  'Exceeds available stock',
+                  style: AppTypography.bodySmall
+                      .copyWith(color: AppColors.error),
+                ),
+              ],
+            ),
+          ],
+
+          const SizedBox(height: AppSizes.xxl),
+
+          // Price summary
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.primarySurface,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Unit Price', style: AppTypography.bodyMedium),
+                    Text(Formatters.currency(widget.product.sellingPrice),
+                        style: AppTypography.labelMedium),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Quantity', style: AppTypography.bodyMedium),
+                    Text('×$_quantity', style: AppTypography.labelMedium),
+                  ],
+                ),
+                const Divider(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Total',
+                        style: AppTypography.h4
+                            .copyWith(color: AppColors.primaryDark)),
+                    Text(Formatters.currency(total),
+                        style: AppTypography.h3
+                            .copyWith(color: AppColors.primaryDark)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: AppSizes.xl),
+
+          // Confirm button
+          SizedBox(
+            width: double.infinity,
+            child: AppButton(
+              label: _isProcessing
+                  ? 'Processing...'
+                  : 'Confirm Sale — ${Formatters.currency(total)}',
+              icon: Icons.check_circle_outline_rounded,
+              isLoading: _isProcessing,
+              onPressed: _canSell && !_isProcessing
+                  ? () async {
+                      setState(() => _isProcessing = true);
+                      await widget.onConfirm(_quantity);
+                    }
+                  : null,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Restock Sheet
+// ═══════════════════════════════════════════════════════════════
+
+class _RestockSheet extends StatefulWidget {
+  final Product product;
+  final Future<void> Function(int quantity, String? note, String? supplier)
+      onConfirm;
+
+  const _RestockSheet({
+    required this.product,
+    required this.onConfirm,
+  });
+
+  @override
+  State<_RestockSheet> createState() => _RestockSheetState();
+}
+
+class _RestockSheetState extends State<_RestockSheet> {
+  final _qtyController = TextEditingController();
+  final _noteController = TextEditingController();
+  final _supplierController = TextEditingController();
+  bool _isProcessing = false;
+
+  @override
+  void dispose() {
+    _qtyController.dispose();
+    _noteController.dispose();
+    _supplierController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        padding: EdgeInsets.fromLTRB(
+            AppSizes.xxl,
+            AppSizes.xxl,
+            AppSizes.xxl,
+            MediaQuery.of(context).padding.bottom + AppSizes.lg),
+        decoration: const BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.divider,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppSizes.xl),
+
+              // Header
+              Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: AppColors.primarySurface,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.add_box_outlined,
+                        color: AppColors.primary, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Restock', style: AppTypography.h4),
+                        Text(widget.product.name,
+                            style: AppTypography.bodySmall
+                                .copyWith(color: AppColors.textSecondary)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSizes.lg),
+
+              // Current stock
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.inputFill,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Current Stock',
+                        style: AppTypography.bodyMedium
+                            .copyWith(color: AppColors.textSecondary)),
+                    Text(
+                        '${widget.product.quantity} ${widget.product.unit}',
+                        style: AppTypography.labelLarge),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSizes.xl),
+
+              // Quantity
+              Text('Quantity to Add', style: AppTypography.labelLarge),
+              const SizedBox(height: AppSizes.sm),
+              TextField(
+                controller: _qtyController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  hintText: 'Enter quantity',
+                  filled: true,
+                  fillColor: AppColors.inputFill,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 14),
+                ),
+              ),
+              const SizedBox(height: AppSizes.lg),
+
+              // Supplier
+              Text('Supplier (Optional)', style: AppTypography.labelLarge),
+              const SizedBox(height: AppSizes.sm),
+              TextField(
+                controller: _supplierController,
+                decoration: InputDecoration(
+                  hintText: 'e.g. ABC Distributors',
+                  filled: true,
+                  fillColor: AppColors.inputFill,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 14),
+                ),
+              ),
+              const SizedBox(height: AppSizes.lg),
+
+              // Note
+              Text('Note (Optional)', style: AppTypography.labelLarge),
+              const SizedBox(height: AppSizes.sm),
+              TextField(
+                controller: _noteController,
+                maxLines: 2,
+                decoration: InputDecoration(
+                  hintText: 'e.g. Weekly restock from supplier',
+                  filled: true,
+                  fillColor: AppColors.inputFill,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 14),
+                ),
+              ),
+              const SizedBox(height: AppSizes.xxl),
+
+              // Confirm
+              SizedBox(
+                width: double.infinity,
+                child: AppButton(
+                  label: _isProcessing ? 'Processing...' : 'Confirm Restock',
+                  icon: Icons.check_circle_outline_rounded,
+                  isLoading: _isProcessing,
+                  onPressed: _isProcessing
+                      ? null
+                      : () async {
+                          final qty = int.tryParse(_qtyController.text);
+                          if (qty == null || qty <= 0) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content:
+                                    Text('Enter a valid quantity'),
+                                backgroundColor: AppColors.warning,
+                              ),
+                            );
+                            return;
+                          }
+                          setState(() => _isProcessing = true);
+                          final note = _noteController.text.trim().isEmpty
+                              ? null
+                              : _noteController.text.trim();
+                          final supplier =
+                              _supplierController.text.trim().isEmpty
+                                  ? null
+                                  : _supplierController.text.trim();
+                          await widget.onConfirm(qty, note, supplier);
+                        },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Quantity Button
+// ═══════════════════════════════════════════════════════════════
+
+class _QtyButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback? onTap;
+
+  const _QtyButton({required this.icon, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 50,
+        height: 50,
+        decoration: BoxDecoration(
+          color: enabled ? AppColors.inputFill : AppColors.divider,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Icon(icon,
+            color: enabled ? AppColors.textPrimary : AppColors.textTertiary),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Bottom Action Button
+// ═══════════════════════════════════════════════════════════════
 
 class _BottomActionButton extends StatelessWidget {
   final IconData icon;
