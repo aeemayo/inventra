@@ -39,6 +39,23 @@ class _AddEditProductScreenState extends ConsumerState<AddEditProductScreen> {
 
   bool get isEditing => widget.productId != null;
 
+  bool get _isScannedExistingProduct =>
+      !isEditing && widget.initialBarcode != null && _existingProduct != null;
+
+  String get _displayProductName => _isScannedExistingProduct
+      ? _existingProduct!.name
+      : (_nameController.text.isEmpty ? 'Product Name' : _nameController.text);
+
+  String get _verificationLabel =>
+      _isScannedExistingProduct ? 'Product Verified' : 'New Product Draft';
+
+  Color get _verificationColor =>
+      _isScannedExistingProduct ? AppColors.success : Colors.orange.shade700;
+
+  void _onHeaderFieldsChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void initState() {
     super.initState();
@@ -49,6 +66,9 @@ class _AddEditProductScreenState extends ConsumerState<AddEditProductScreen> {
     if (isEditing) {
       _loadProduct();
     }
+    _nameController.addListener(_onHeaderFieldsChanged);
+    _categoryController.addListener(_onHeaderFieldsChanged);
+    _upcController.addListener(_onHeaderFieldsChanged);
   }
 
   Future<void> _loadProduct() async {
@@ -80,6 +100,10 @@ class _AddEditProductScreenState extends ConsumerState<AddEditProductScreen> {
 
   @override
   void dispose() {
+    _nameController.removeListener(_onHeaderFieldsChanged);
+    _categoryController.removeListener(_onHeaderFieldsChanged);
+    _upcController.removeListener(_onHeaderFieldsChanged);
+
     _nameController.dispose();
     _upcController.dispose();
     _barcodeController.dispose();
@@ -276,31 +300,33 @@ class _AddEditProductScreenState extends ConsumerState<AddEditProductScreen> {
                                   children: [
                                     Expanded(
                                       child: Text(
-                                        _nameController.text.isEmpty
-                                            ? 'Product Name'
-                                            : _nameController.text,
+                                        _displayProductName,
                                         style: const TextStyle(
                                             fontWeight: FontWeight.w700,
                                             fontSize: 16,
                                             height: 1.2),
                                       ),
                                     ),
-                                    const SizedBox(width: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.success.withAlpha(38),
-                                        borderRadius: BorderRadius.circular(8),
+                                    if (_isScannedExistingProduct) ...[
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color:
+                                              AppColors.success.withAlpha(38),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                        ),
+                                        child: const Text('IN\nSTOCK',
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(
+                                                color: AppColors.success,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                                height: 1.1)),
                                       ),
-                                      child: const Text('IN\nSTOCK',
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                              color: AppColors.success,
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.bold,
-                                              height: 1.1)),
-                                    ),
+                                    ],
                                   ],
                                 ),
                                 const SizedBox(height: 4),
@@ -311,13 +337,13 @@ class _AddEditProductScreenState extends ConsumerState<AddEditProductScreen> {
                                 ),
                                 const SizedBox(height: 6),
                                 Row(
-                                  children: const [
+                                  children: [
                                     Icon(Icons.check_circle_outline_rounded,
-                                        color: AppColors.success, size: 16),
-                                    SizedBox(width: 4),
-                                    Text('Product Verified',
+                                        color: _verificationColor, size: 16),
+                                    const SizedBox(width: 4),
+                                    Text(_verificationLabel,
                                         style: TextStyle(
-                                            color: AppColors.success,
+                                            color: _verificationColor,
                                             fontSize: 12,
                                             fontWeight: FontWeight.w500)),
                                   ],
