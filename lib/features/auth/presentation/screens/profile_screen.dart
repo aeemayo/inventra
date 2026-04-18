@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -46,6 +47,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _phoneController = TextEditingController(text: user?.phoneNumber ?? '');
     _shopNameController = TextEditingController(text: user?.shopName ?? '');
     _initialized = true;
+  }
+
+  /// Converts a photoUrl (either a base64 data URI or a network URL)
+  /// into an appropriate [ImageProvider].
+  ImageProvider _imageProviderFromUrl(String url) {
+    if (url.startsWith('data:')) {
+      // Extract base64 payload from data URI
+      final base64Str = url.split(',').last;
+      final bytes = base64Decode(base64Str);
+      return MemoryImage(bytes);
+    }
+    return NetworkImage(url);
   }
 
   Future<void> _pickImage() async {
@@ -120,9 +133,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final picker = ImagePicker();
     final picked = await picker.pickImage(
       source: source,
-      maxWidth: 512,
-      maxHeight: 512,
-      imageQuality: 80,
+      maxWidth: 256,
+      maxHeight: 256,
+      imageQuality: 60,
     );
 
     if (picked == null || !mounted) return;
@@ -314,7 +327,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                   CircleAvatar(
                                     radius: 54,
                                     backgroundImage:
-                                        NetworkImage(user.photoUrl!),
+                                        _imageProviderFromUrl(user.photoUrl!),
                                   )
                                 else
                                   CircleAvatar(

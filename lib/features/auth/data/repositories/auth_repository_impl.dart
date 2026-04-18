@@ -1,8 +1,8 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import '../../../../core/constants/firestore_paths.dart';
 import '../../../../core/errors/failures.dart';
@@ -165,61 +165,28 @@ class AuthRepositoryImpl implements AuthRepository {
     try {
       final file = File(filePath);
 
-      // Verify the file exists and is readable
       if (!await file.exists()) {
-        debugPrint('[ProfilePhoto] File does not exist: $filePath');
         throw const AuthFailure(message: 'Selected image file not found');
       }
 
-      final fileSize = await file.length();
-      debugPrint('[ProfilePhoto] File size: $fileSize bytes');
-      debugPrint('[ProfilePhoto] Storage bucket: ${FirebaseStorage.instance.bucket}');
-
-      // Read bytes first to avoid file-access issues during upload
       final bytes = await file.readAsBytes();
-      debugPrint('[ProfilePhoto] Read ${bytes.length} bytes, uploading...');
+      debugPrint('[ProfilePhoto] Read ${bytes.length} bytes, encoding to base64...');
 
-      final ref = FirebaseStorage.instance
-          .ref()
-          .child('profile_photos')
-          .child('$uid.jpg');
+      // Encode as base64 data URI (image is already compressed
+      // to 512x512 @ 80% quality by image_picker)
+      final base64Str = base64Encode(bytes);
+      final dataUri = 'data:image/jpeg;base64,$base64Str';
 
-      final uploadTask = ref.putData(
-        bytes,
-        SettableMetadata(contentType: 'image/jpeg'),
-      );
+      debugPrint('[ProfilePhoto] Base64 size: ${dataUri.length} characters');
 
-      // Monitor upload progress
-      uploadTask.snapshotEvents.listen(
-        (snapshot) {
-          final progress =
-              snapshot.bytesTransferred / snapshot.totalBytes * 100;
-          debugPrint(
-              '[ProfilePhoto] Upload progress: ${progress.toStringAsFixed(1)}% '
-              '(${snapshot.bytesTransferred}/${snapshot.totalBytes}) '
-              'state=${snapshot.state}');
-        },
-        onError: (e) {
-          debugPrint('[ProfilePhoto] Upload stream error: $e');
-        },
-      );
+      // Store in Firestore via the existing updateProfile method
+      await updateProfile(photoUrl: dataUri);
 
-      await uploadTask;
-      debugPrint('[ProfilePhoto] Upload complete, fetching download URL...');
-
-      final downloadUrl = await ref.getDownloadURL();
-      debugPrint('[ProfilePhoto] Download URL: $downloadUrl');
-
-      // Persist the URL in Firestore + update cached user
-      await updateProfile(photoUrl: downloadUrl);
-
-      return downloadUrl;
-    } on FirebaseException catch (e) {
-      debugPrint('[ProfilePhoto] FirebaseException: code=${e.code} message=${e.message} plugin=${e.plugin}');
-      throw AuthFailure(message: e.message ?? 'Failed to upload photo');
-    } catch (e, stack) {
+      debugPrint('[ProfilePhoto] Saved to Firestore successfully');
+      return dataUri;
+    } catch (e) {
       debugPrint('[ProfilePhoto] Error: $e');
-      debugPrint('[ProfilePhoto] Stack: $stack');
+      if (e is AuthFailure) rethrow;
       throw AuthFailure(message: 'Failed to upload photo: $e');
     }
   }
