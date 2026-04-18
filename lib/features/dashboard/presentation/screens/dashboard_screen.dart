@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -16,6 +18,34 @@ import '../../../inventory/presentation/controllers/inventory_controller.dart';
 /// - Two stat cards (total products, low stock)
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
+
+  Widget _buildAvatar(String? photoUrl, String? displayName) {
+    final initials =
+        (displayName?.isNotEmpty == true ? displayName! : 'U')[0].toUpperCase();
+
+    if (photoUrl != null && photoUrl.isNotEmpty) {
+      ImageProvider imageProvider;
+      if (photoUrl.startsWith('data:')) {
+        final base64Str = photoUrl.split(',').last;
+        imageProvider = MemoryImage(base64Decode(base64Str));
+      } else {
+        imageProvider = NetworkImage(photoUrl);
+      }
+      return CircleAvatar(
+        radius: 22,
+        backgroundImage: imageProvider,
+      );
+    }
+
+    return CircleAvatar(
+      radius: 22,
+      backgroundColor: AppColors.primarySurface,
+      child: Text(
+        initials,
+        style: AppTypography.labelLarge.copyWith(color: AppColors.primary),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -58,18 +88,7 @@ class DashboardScreen extends ConsumerWidget {
                   // Profile avatar
                   GestureDetector(
                     onTap: () => context.push('/profile'),
-                    child: CircleAvatar(
-                      radius: 22,
-                      backgroundColor: AppColors.primarySurface,
-                      child: Text(
-                        (user?.displayName.isNotEmpty == true
-                                ? user!.displayName
-                                : 'U')[0]
-                            .toUpperCase(),
-                        style: AppTypography.labelLarge
-                            .copyWith(color: AppColors.primary),
-                      ),
-                    ),
+                    child: _buildAvatar(user?.photoUrl, user?.displayName),
                   ),
                 ],
               ),
