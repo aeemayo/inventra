@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_sizes.dart';
 import '../../../../core/constants/app_typography.dart';
@@ -23,6 +26,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   late final TextEditingController _phoneController;
   late final TextEditingController _shopNameController;
   bool _initialized = false;
+  File? _selectedImage;
+  bool _isUploadingPhoto = false;
 
   @override
   void dispose() {
@@ -41,6 +46,114 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _phoneController = TextEditingController(text: user?.phoneNumber ?? '');
     _shopNameController = TextEditingController(text: user?.shopName ?? '');
     _initialized = true;
+  }
+
+  Future<void> _pickImage() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        margin: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(AppSizes.radiusLg),
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.textTertiary.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text('Update Profile Photo',
+                  style: AppTypography.h3),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppColors.primarySurface,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.camera_alt_rounded,
+                      color: AppColors.primary),
+                ),
+                title: const Text('Take a Photo'),
+                subtitle: Text('Use your camera',
+                    style: TextStyle(color: AppColors.textTertiary, fontSize: 13)),
+                onTap: () => Navigator.of(ctx).pop(ImageSource.camera),
+              ),
+              Divider(height: 1, indent: 70, color: AppColors.textTertiary.withValues(alpha: 0.15)),
+              ListTile(
+                leading: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppColors.primarySurface,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.photo_library_rounded,
+                      color: AppColors.primary),
+                ),
+                title: const Text('Choose from Gallery'),
+                subtitle: Text('Pick an existing photo',
+                    style: TextStyle(color: AppColors.textTertiary, fontSize: 13)),
+                onTap: () => Navigator.of(ctx).pop(ImageSource.gallery),
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (source == null) return;
+
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: source,
+      maxWidth: 512,
+      maxHeight: 512,
+      imageQuality: 80,
+    );
+
+    if (picked == null || !mounted) return;
+
+    setState(() {
+      _selectedImage = File(picked.path);
+      _isUploadingPhoto = true;
+    });
+
+    final success = await ref
+        .read(authControllerProvider.notifier)
+        .updateProfilePhoto(picked.path);
+
+    if (!mounted) return;
+
+    setState(() => _isUploadingPhoto = false);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          success
+              ? 'Profile photo updated!'
+              : 'Failed to upload photo',
+        ),
+        backgroundColor: success ? AppColors.success : AppColors.error,
+      ),
+    );
+
+    if (!success) {
+      setState(() => _selectedImage = null);
+    }
   }
 
   Future<void> _onSave() async {
@@ -187,14 +300,24 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             ),
                           ),
                           child: Center(
-                            child: user?.photoUrl != null &&
-                                    user!.photoUrl!.isNotEmpty
-                                ? CircleAvatar(
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                if (_selectedImage != null)
+                                  CircleAvatar(
+                                    radius: 54,
+                                    backgroundImage:
+                                        FileImage(_selectedImage!),
+                                  )
+                                else if (user?.photoUrl != null &&
+                                    user!.photoUrl!.isNotEmpty)
+                                  CircleAvatar(
                                     radius: 54,
                                     backgroundImage:
                                         NetworkImage(user.photoUrl!),
                                   )
-                                : CircleAvatar(
+                                else
+                                  CircleAvatar(
                                     radius: 54,
                                     backgroundColor:
                                         AppColors.primarySurface,
@@ -206,6 +329,27 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                       ),
                                     ),
                                   ),
+                                if (_isUploadingPhoto)
+                                  Container(
+                                    width: 108,
+                                    height: 108,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: Colors.black.withValues(alpha: 0.4),
+                                    ),
+                                    child: const Center(
+                                      child: SizedBox(
+                                        width: 28,
+                                        height: 28,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 3,
+                                          color: AppColors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
                           ),
                         ),
                         // Camera button
@@ -213,16 +357,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           bottom: 2,
                           right: 2,
                           child: GestureDetector(
-                            onTap: () {
-                              // Photo picker — placeholder for now
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                      'Photo upload coming soon'),
-                                  backgroundColor: AppColors.info,
-                                ),
-                              );
-                            },
+                            onTap: _isUploadingPhoto ? null : _pickImage,
                             child: Container(
                               width: 36,
                               height: 36,

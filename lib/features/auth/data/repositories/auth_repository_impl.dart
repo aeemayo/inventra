@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import '../../../../core/constants/firestore_paths.dart';
 import '../../../../core/errors/failures.dart';
 import '../../domain/entities/app_user.dart';
@@ -150,6 +153,35 @@ class AuthRepositoryImpl implements AuthRepository {
         shopName: shopName ?? _cachedUser!.shopName,
         fcmToken: fcmToken ?? _cachedUser!.fcmToken,
       );
+    }
+  }
+
+  @override
+  Future<String> uploadProfilePhoto(String filePath) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) throw const AuthFailure(message: 'Not authenticated');
+
+    try {
+      final ref = FirebaseStorage.instance
+          .ref()
+          .child('profile_photos')
+          .child('$uid.jpg');
+
+      await ref.putFile(
+        File(filePath),
+        SettableMetadata(contentType: 'image/jpeg'),
+      );
+
+      final downloadUrl = await ref.getDownloadURL();
+
+      // Persist the URL in Firestore + update cached user
+      await updateProfile(photoUrl: downloadUrl);
+
+      return downloadUrl;
+    } on FirebaseException catch (e) {
+      throw AuthFailure(message: e.message ?? 'Failed to upload photo');
+    } catch (e) {
+      throw AuthFailure(message: 'Failed to upload photo: $e');
     }
   }
 

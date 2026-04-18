@@ -144,6 +144,22 @@ class AuthController extends StateNotifier<AuthState> {
     state = AuthState.initial;
   }
 
+  Future<bool> updateProfilePhoto(String filePath) async {
+    state = state.copyWith(isLoading: true, error: null, isSuccess: false);
+    try {
+      await _repository.uploadProfilePhoto(filePath);
+      state = state.copyWith(
+        isLoading: false,
+        isSuccess: true,
+        successMessage: 'Profile photo updated',
+      );
+      return true;
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+      return false;
+    }
+  }
+
   Future<bool> updateUserProfile({
     String? displayName,
     String? phoneNumber,
@@ -219,6 +235,11 @@ class _UnavailableAuthRepository implements AuthRepository {
     String? shopName,
     String? fcmToken,
   }) {
+    throw AuthFailure(message: message, code: 'auth-unavailable');
+  }
+
+  @override
+  Future<String> uploadProfilePhoto(String filePath) {
     throw AuthFailure(message: message, code: 'auth-unavailable');
   }
 

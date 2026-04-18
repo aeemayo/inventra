@@ -38,6 +38,10 @@ abstract class AuthRepository {
     String? fcmToken,
   });
 
+  /// Upload a profile photo and return the download URL.
+  /// [filePath] is the absolute local path of the image file.
+  Future<String> uploadProfilePhoto(String filePath);
+
   /// Get user by UID
   Future<AppUser?> getUserById(String uid);
 }
