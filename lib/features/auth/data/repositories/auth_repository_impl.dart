@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 import '../../../../core/constants/firestore_paths.dart';
 import '../../../../core/errors/failures.dart';
 import '../../domain/entities/app_user.dart';
@@ -162,25 +163,63 @@ class AuthRepositoryImpl implements AuthRepository {
     if (uid == null) throw const AuthFailure(message: 'Not authenticated');
 
     try {
+      final file = File(filePath);
+
+      // Verify the file exists and is readable
+      if (!await file.exists()) {
+        debugPrint('[ProfilePhoto] File does not exist: $filePath');
+        throw const AuthFailure(message: 'Selected image file not found');
+      }
+
+      final fileSize = await file.length();
+      debugPrint('[ProfilePhoto] File size: $fileSize bytes');
+      debugPrint('[ProfilePhoto] Storage bucket: ${FirebaseStorage.instance.bucket}');
+
+      // Read bytes first to avoid file-access issues during upload
+      final bytes = await file.readAsBytes();
+      debugPrint('[ProfilePhoto] Read ${bytes.length} bytes, uploading...');
+
       final ref = FirebaseStorage.instance
           .ref()
           .child('profile_photos')
           .child('$uid.jpg');
 
-      await ref.putFile(
-        File(filePath),
+      final uploadTask = ref.putData(
+        bytes,
         SettableMetadata(contentType: 'image/jpeg'),
       );
 
+      // Monitor upload progress
+      uploadTask.snapshotEvents.listen(
+        (snapshot) {
+          final progress =
+              snapshot.bytesTransferred / snapshot.totalBytes * 100;
+          debugPrint(
+              '[ProfilePhoto] Upload progress: ${progress.toStringAsFixed(1)}% '
+              '(${snapshot.bytesTransferred}/${snapshot.totalBytes}) '
+              'state=${snapshot.state}');
+        },
+        onError: (e) {
+          debugPrint('[ProfilePhoto] Upload stream error: $e');
+        },
+      );
+
+      await uploadTask;
+      debugPrint('[ProfilePhoto] Upload complete, fetching download URL...');
+
       final downloadUrl = await ref.getDownloadURL();
+      debugPrint('[ProfilePhoto] Download URL: $downloadUrl');
 
       // Persist the URL in Firestore + update cached user
       await updateProfile(photoUrl: downloadUrl);
 
       return downloadUrl;
     } on FirebaseException catch (e) {
+      debugPrint('[ProfilePhoto] FirebaseException: code=${e.code} message=${e.message} plugin=${e.plugin}');
       throw AuthFailure(message: e.message ?? 'Failed to upload photo');
-    } catch (e) {
+    } catch (e, stack) {
+      debugPrint('[ProfilePhoto] Error: $e');
+      debugPrint('[ProfilePhoto] Stack: $stack');
       throw AuthFailure(message: 'Failed to upload photo: $e');
     }
   }
