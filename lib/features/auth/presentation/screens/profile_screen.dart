@@ -164,7 +164,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       ),
     );
 
-    if (!success) {
+    if (success) {
+      // Force re-fetch user profile from Firestore so the updated
+      // photoUrl is reflected everywhere via currentUserProvider.
+      ref.invalidate(authStateProvider);
+    } else {
       setState(() => _selectedImage = null);
     }
   }
@@ -180,6 +184,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             );
 
     if (success && mounted) {
+      ref.invalidate(authStateProvider);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Profile updated successfully'),
