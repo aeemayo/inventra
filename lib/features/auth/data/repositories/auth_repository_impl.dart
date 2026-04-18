@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 import '../../../../core/constants/firestore_paths.dart';
 import '../../../../core/errors/failures.dart';
 import '../../domain/entities/app_user.dart';
@@ -170,22 +169,17 @@ class AuthRepositoryImpl implements AuthRepository {
       }
 
       final bytes = await file.readAsBytes();
-      debugPrint('[ProfilePhoto] Read ${bytes.length} bytes, encoding to base64...');
 
       // Encode as base64 data URI (image is already compressed
-      // to 512x512 @ 80% quality by image_picker)
+      // to 256x256 @ 60% quality by image_picker)
       final base64Str = base64Encode(bytes);
       final dataUri = 'data:image/jpeg;base64,$base64Str';
-
-      debugPrint('[ProfilePhoto] Base64 size: ${dataUri.length} characters');
 
       // Store in Firestore via the existing updateProfile method
       await updateProfile(photoUrl: dataUri);
 
-      debugPrint('[ProfilePhoto] Saved to Firestore successfully');
       return dataUri;
     } catch (e) {
-      debugPrint('[ProfilePhoto] Error: $e');
       if (e is AuthFailure) rethrow;
       throw AuthFailure(message: 'Failed to upload photo: $e');
     }
