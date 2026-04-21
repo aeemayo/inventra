@@ -5,12 +5,12 @@ class Formatters {
   Formatters._();
 
   // ── Currency ──
-  static String currency(double amount, {String symbol = '\$'}) {
+  static String currency(double amount, {String symbol = '₦'}) {
     final formatter = NumberFormat.currency(symbol: symbol, decimalDigits: 2);
     return formatter.format(amount);
   }
 
-  static String compactCurrency(double amount, {String symbol = '\$'}) {
+  static String compactCurrency(double amount, {String symbol = '₦'}) {
     if (amount >= 1000000) {
       return '$symbol${(amount / 1000000).toStringAsFixed(1)}M';
     } else if (amount >= 1000) {

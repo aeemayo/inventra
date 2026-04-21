@@ -131,7 +131,7 @@ class ScannerController extends StateNotifier<ScannerActionState> {
       state = state.copyWith(
         status: ScannerStatus.success,
         message:
-            'Sale complete: $quantity × $productName = \$${total.toStringAsFixed(2)}',
+            'Sale complete: $quantity × $productName = ₦${total.toStringAsFixed(2)}',
       );
       return true;
     } on InsufficientStockException catch (e) {
