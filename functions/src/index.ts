@@ -155,7 +155,7 @@ export const checkLowStock = onDocumentWritten(
       });
     } else if (quantity <= 0) {
       await db.collection(`shops/${shopId}/notifications`).add({
-        type: "low_stock",
+        type: "out_of_stock",
         title: "Out of Stock!",
         body: `${productName} is completely out of stock`,
         data: {productId: event.params.productId},
@@ -164,6 +164,109 @@ export const checkLowStock = onDocumentWritten(
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
     }
+  }
+);
+
+/**
+ * Check for products nearing expiry (runs daily at 06:00 UTC).
+ */
+export const checkExpiringProducts = onSchedule(
+  {schedule: "every day 06:00", timeZone: "UTC"},
+  async (_event: ScheduledEvent) => {
+    const shopsSnapshot = await db.collection("shops").get();
+
+    for (const shopDoc of shopsSnapshot.docs) {
+      const shopId = shopDoc.id;
+
+      // Get shop settings for expiry alert configuration
+      const settingsDoc = await db.doc(`shops/${shopId}/settings/config`).get();
+      const settings = settingsDoc.data();
+      const alertDays = (settings?.expiryAlertDays as number) || 30;
+      const enableExpiryAlerts = settings?.enableExpiryAlerts !== false;
+
+      if (!enableExpiryAlerts) continue;
+
+      const alertDate = new Date();
+      alertDate.setDate(alertDate.getDate() + alertDays);
+
+      const productsSnapshot = await db
+        .collection(`shops/${shopId}/products`)
+        .where("isActive", "==", true)
+        .get();
+
+      for (const productDoc of productsSnapshot.docs) {
+        const product = productDoc.data();
+        const expiryDate = product.expiryDate?.toDate?.();
+
+        if (!expiryDate) continue;
+
+        if (expiryDate <= alertDate && expiryDate > new Date()) {
+          const daysUntilExpiry = Math.ceil(
+            (expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+          );
+
+          await db.collection(`shops/${shopId}/notifications`).add({
+            type: "expiry_warning",
+            title: "Expiry Warning",
+            body: `${product.name} expires in ${daysUntilExpiry} day${daysUntilExpiry === 1 ? "" : "s"}`,
+            data: {productId: productDoc.id, expiryDate: expiryDate.toISOString()},
+            read: false,
+            userId: null,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        } else if (expiryDate <= new Date()) {
+          await db.collection(`shops/${shopId}/notifications`).add({
+            type: "expiry_warning",
+            title: "Product Expired!",
+            body: `${product.name} has expired`,
+            data: {productId: productDoc.id, expiryDate: expiryDate.toISOString()},
+            read: false,
+            userId: null,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        }
+      }
+    }
+  }
+);
+
+/**
+ * Update category product count when a product is created, updated, or deleted.
+ */
+export const updateCategoryProductCount = onDocumentWritten(
+  "shops/{shopId}/products/{productId}",
+  async (event: FirestoreEvent<Change<DocumentSnapshot> | undefined, {shopId: string; productId: string}>) => {
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    const shopId = event.params.shopId;
+
+    const beforeCategoryId = before?.categoryId as string | null;
+    const afterCategoryId = after?.categoryId as string | null;
+
+    // If category didn't change, nothing to do
+    if (beforeCategoryId === afterCategoryId) return;
+
+    const batch = db.batch();
+
+    // Decrement old category count
+    if (beforeCategoryId) {
+      const oldCatRef = db.doc(`shops/${shopId}/categories/${beforeCategoryId}`);
+      batch.update(oldCatRef, {
+        productCount: admin.firestore.FieldValue.increment(-1),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
+    // Increment new category count
+    if (afterCategoryId) {
+      const newCatRef = db.doc(`shops/${shopId}/categories/${afterCategoryId}`);
+      batch.update(newCatRef, {
+        productCount: admin.firestore.FieldValue.increment(1),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
+    await batch.commit();
   }
 );
 
@@ -212,15 +315,15 @@ export const aggregateDailySales = onSchedule(
       .slice(0, 10)
       .map(([id, data]) => ({productId: id, ...data}));
 
-    // Get low stock count
-    const lowStockSnapshot = await db
+    // Get low stock count and inventory value
+    const productsSnapshot = await db
       .collection(`shops/${shopId}/products`)
       .where("isActive", "==", true)
       .get();
 
     let lowStockCount = 0;
     let inventoryValue = 0;
-    for (const pDoc of lowStockSnapshot.docs) {
+    for (const pDoc of productsSnapshot.docs) {
       const p = pDoc.data();
       if (p.quantity <= p.reorderLevel) lowStockCount++;
       inventoryValue += (p.costPrice || 0) * (p.quantity || 0);

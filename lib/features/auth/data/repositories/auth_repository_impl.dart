@@ -80,22 +80,95 @@ class AuthRepositoryImpl implements AuthRepository {
       await credential.user!.updateDisplayName(displayName);
 
       final now = DateTime.now();
-      final userModel = UserModel(
-        uid: credential.user!.uid,
+      final uid = credential.user!.uid;
+
+      // Create shop document for admin registrations
+      String? shopId;
+      if (role == UserRole.admin && shopName.trim().isNotEmpty) {
+        final shopRef = _firestore.collection(FirestorePaths.shops).doc();
+        shopId = shopRef.id;
+
+        final batch = _firestore.batch();
+
+        // 1. Create shop document
+        batch.set(shopRef, {
+          'name': shopName.trim(),
+          'ownerId': uid,
+          'currency': 'NGN',
+          'currencySymbol': '₦',
+          'taxRate': 0.0,
+          'memberCount': 1,
+          'isActive': true,
+          'createdAt': Timestamp.fromDate(now),
+          'updatedAt': Timestamp.fromDate(now),
+        });
+
+        // 2. Initialize default shop settings
+        batch.set(
+          _firestore.doc(FirestorePaths.shopSettings(shopRef.id)),
+          {
+            'lowStockThreshold': 5,
+            'currency': 'NGN',
+            'currencySymbol': '₦',
+            'taxRate': 0.0,
+            'enableNotifications': true,
+            'enableExpiryAlerts': true,
+            'expiryAlertDays': 30,
+            'updatedAt': Timestamp.fromDate(now),
+            'updatedBy': uid,
+          },
+        );
+
+        // 3. Create user document with shopId linked
+        batch.set(
+          _firestore.collection(FirestorePaths.users).doc(uid),
+          UserModel(
+            uid: uid,
+            email: email.trim(),
+            displayName: displayName.trim(),
+            role: role.name,
+            shopId: shopId,
+            shopName: shopName.trim(),
+            isActive: true,
+            lastLoginAt: now,
+            createdAt: now,
+            updatedAt: now,
+          ).toFirestore(),
+        );
+
+        await batch.commit();
+      } else {
+        // Non-admin or no shop name — create user without shop
+        final userModel = UserModel(
+          uid: uid,
+          email: email.trim(),
+          displayName: displayName.trim(),
+          role: role.name,
+          shopName: shopName.trim(),
+          isActive: true,
+          lastLoginAt: now,
+          createdAt: now,
+          updatedAt: now,
+        );
+
+        await _firestore
+            .collection(FirestorePaths.users)
+            .doc(uid)
+            .set(userModel.toFirestore());
+      }
+
+      final user = AppUser(
+        uid: uid,
         email: email.trim(),
         displayName: displayName.trim(),
-        role: role.name,
+        role: role,
+        shopId: shopId,
         shopName: shopName.trim(),
+        isActive: true,
+        lastLoginAt: now,
         createdAt: now,
         updatedAt: now,
       );
-
-      await _firestore
-          .collection(FirestorePaths.users)
-          .doc(credential.user!.uid)
-          .set(userModel.toFirestore());
-
-      final user = userModel.toEntity();
       _cachedUser = user;
       return user;
     } on FirebaseAuthException catch (e) {

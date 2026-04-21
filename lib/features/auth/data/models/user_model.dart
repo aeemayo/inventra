@@ -12,6 +12,8 @@ class UserModel {
   final String role;
   final String? shopName;
   final String? fcmToken;
+  final bool isActive;
+  final DateTime? lastLoginAt;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -25,6 +27,8 @@ class UserModel {
     required this.role,
     this.shopName,
     this.fcmToken,
+    this.isActive = true,
+    this.lastLoginAt,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -41,6 +45,8 @@ class UserModel {
       role: data['role'] as String? ?? 'sales',
       shopName: data['shopName'] as String?,
       fcmToken: data['fcmToken'] as String?,
+      isActive: data['isActive'] as bool? ?? true,
+      lastLoginAt: (data['lastLoginAt'] as Timestamp?)?.toDate(),
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
@@ -57,6 +63,8 @@ class UserModel {
       'role': role,
       'shopName': shopName,
       'fcmToken': fcmToken,
+      'isActive': isActive,
+      'lastLoginAt': lastLoginAt != null ? Timestamp.fromDate(lastLoginAt!) : null,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
     };
@@ -73,6 +81,8 @@ class UserModel {
       shopName: shopName,
       role: _parseRole(role),
       fcmToken: fcmToken,
+      isActive: isActive,
+      lastLoginAt: lastLoginAt,
       createdAt: createdAt,
       updatedAt: updatedAt,
     );
@@ -104,6 +114,8 @@ class UserModel {
       role: user.role.name,
       shopName: shopName ?? user.shopName,
       fcmToken: user.fcmToken,
+      isActive: user.isActive,
+      lastLoginAt: user.lastLoginAt,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     );

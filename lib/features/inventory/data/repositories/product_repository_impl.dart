@@ -174,6 +174,8 @@ class ProductRepositoryImpl implements ProductRepository {
                 productCount: (data['productCount'] as num?)?.toInt() ?? 0,
                 createdAt: (data['createdAt'] as Timestamp?)?.toDate() ??
                     DateTime.now(),
+                updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ??
+                    DateTime.now(),
               );
             }).toList());
   }
@@ -187,8 +189,9 @@ class ProductRepositoryImpl implements ProductRepository {
       'description': category.description,
       'productCount': 0,
       'createdAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
     });
-    return category.copyWith(id: docRef.id);
+    return category.copyWith(id: docRef.id, updatedAt: DateTime.now());
   }
 
   @override

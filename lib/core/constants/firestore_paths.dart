@@ -24,7 +24,27 @@ class FirestorePaths {
   static String product(String shopId, String productId) =>
       'shops/$shopId/products/$productId';
 
+  // ── Category Documents ──
+  static String category(String shopId, String categoryId) =>
+      'shops/$shopId/categories/$categoryId';
+
   // ── Transaction Documents ──
   static String transaction(String shopId, String transactionId) =>
       'shops/$shopId/transactions/$transactionId';
+
+  // ── Stock Movement Documents ──
+  static String stockMovement(String shopId, String movementId) =>
+      'shops/$shopId/stock_movements/$movementId';
+
+  // ── Scan History Documents ──
+  static String scanHistoryEntry(String shopId, String scanId) =>
+      'shops/$shopId/scan_history/$scanId';
+
+  // ── Notification Documents ──
+  static String notification(String shopId, String notificationId) =>
+      'shops/$shopId/notifications/$notificationId';
+
+  // ── Analytics Snapshot Documents ──
+  static String analyticsSnapshot(String shopId, String dateKey) =>
+      'shops/$shopId/analytics_snapshots/$dateKey';
 }

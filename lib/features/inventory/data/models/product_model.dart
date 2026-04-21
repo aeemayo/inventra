@@ -19,6 +19,7 @@ class ProductModel {
   final String? description;
   final DateTime? expiryDate;
   final bool isActive;
+  final List<String> searchKeywords;
   final DateTime createdAt;
   final DateTime updatedAt;
   final String createdBy;
@@ -41,6 +42,7 @@ class ProductModel {
     this.description,
     this.expiryDate,
     this.isActive = true,
+    this.searchKeywords = const [],
     required this.createdAt,
     required this.updatedAt,
     required this.createdBy,
@@ -67,6 +69,10 @@ class ProductModel {
       description: data['description'] as String?,
       expiryDate: (data['expiryDate'] as Timestamp?)?.toDate(),
       isActive: data['isActive'] as bool? ?? true,
+      searchKeywords: (data['searchKeywords'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          [],
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       createdBy: data['createdBy'] as String? ?? '',
@@ -91,6 +97,7 @@ class ProductModel {
       'description': description,
       'expiryDate': expiryDate != null ? Timestamp.fromDate(expiryDate!) : null,
       'isActive': isActive,
+      'searchKeywords': searchKeywords,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
       'createdBy': createdBy,
@@ -116,6 +123,7 @@ class ProductModel {
       description: description,
       expiryDate: expiryDate,
       isActive: isActive,
+      searchKeywords: searchKeywords,
       createdAt: createdAt,
       updatedAt: updatedAt,
       createdBy: createdBy,
@@ -141,6 +149,9 @@ class ProductModel {
       description: product.description,
       expiryDate: product.expiryDate,
       isActive: product.isActive,
+      searchKeywords: product.searchKeywords.isNotEmpty
+          ? product.searchKeywords
+          : Product.generateKeywords(product.name, product.sku),
       createdAt: product.createdAt,
       updatedAt: product.updatedAt,
       createdBy: product.createdBy,

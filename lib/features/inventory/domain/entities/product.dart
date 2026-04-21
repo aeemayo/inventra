@@ -18,6 +18,7 @@ class Product extends Equatable {
   final String? description;
   final DateTime? expiryDate;
   final bool isActive;
+  final List<String> searchKeywords;
   final DateTime createdAt;
   final DateTime updatedAt;
   final String createdBy;
@@ -40,11 +41,35 @@ class Product extends Equatable {
     this.description,
     this.expiryDate,
     this.isActive = true,
+    this.searchKeywords = const [],
     required this.createdAt,
     required this.updatedAt,
     required this.createdBy,
     required this.updatedBy,
   });
+
+  /// Generate search keywords from name and SKU for Firestore array-contains queries
+  static List<String> generateKeywords(String name, String sku) {
+    final keywords = <String>{};
+    final nameLower = name.toLowerCase().trim();
+    final skuLower = sku.toLowerCase().trim();
+
+    // Add full name and SKU
+    if (nameLower.isNotEmpty) keywords.add(nameLower);
+    if (skuLower.isNotEmpty) keywords.add(skuLower);
+
+    // Add individual words from name
+    for (final word in nameLower.split(RegExp(r'\s+'))) {
+      if (word.isNotEmpty) keywords.add(word);
+    }
+
+    // Add prefix substrings of name (for typeahead search)
+    for (int i = 1; i <= nameLower.length && i <= 20; i++) {
+      keywords.add(nameLower.substring(0, i));
+    }
+
+    return keywords.toList();
+  }
 
   bool get isLowStock => quantity <= reorderLevel && quantity > 0;
   bool get isOutOfStock => quantity <= 0;
@@ -70,6 +95,7 @@ class Product extends Equatable {
     String? imageUrl,
     String? description,
     DateTime? expiryDate,
+    List<String>? searchKeywords,
     bool? isActive,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -92,6 +118,7 @@ class Product extends Equatable {
       imageUrl: imageUrl ?? this.imageUrl,
       description: description ?? this.description,
       expiryDate: expiryDate ?? this.expiryDate,
+      searchKeywords: searchKeywords ?? this.searchKeywords,
       isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,

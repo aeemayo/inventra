@@ -39,6 +39,8 @@ class AppUser extends Equatable {
   final String? shopName;
   final UserRole role;
   final String? fcmToken;
+  final bool isActive;
+  final DateTime? lastLoginAt;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -52,6 +54,8 @@ class AppUser extends Equatable {
     this.shopName,
     required this.role,
     this.fcmToken,
+    this.isActive = true,
+    this.lastLoginAt,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -68,6 +72,8 @@ class AppUser extends Equatable {
     String? shopName,
     UserRole? role,
     String? fcmToken,
+    bool? isActive,
+    DateTime? lastLoginAt,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -81,11 +87,13 @@ class AppUser extends Equatable {
       shopName: shopName ?? this.shopName,
       role: role ?? this.role,
       fcmToken: fcmToken ?? this.fcmToken,
+      isActive: isActive ?? this.isActive,
+      lastLoginAt: lastLoginAt ?? this.lastLoginAt,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 
   @override
-  List<Object?> get props => [uid, email, displayName, photoUrl, phoneNumber, shopId, shopName, role, fcmToken];
+  List<Object?> get props => [uid, email, displayName, photoUrl, phoneNumber, shopId, shopName, role, fcmToken, isActive, lastLoginAt];
 }

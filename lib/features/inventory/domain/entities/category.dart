@@ -7,6 +7,7 @@ class Category extends Equatable {
   final String? description;
   final int productCount;
   final DateTime createdAt;
+  final DateTime updatedAt;
 
   const Category({
     required this.id,
@@ -14,6 +15,7 @@ class Category extends Equatable {
     this.description,
     this.productCount = 0,
     required this.createdAt,
+    required this.updatedAt,
   });
 
   Category copyWith({
@@ -22,6 +24,7 @@ class Category extends Equatable {
     String? description,
     int? productCount,
     DateTime? createdAt,
+    DateTime? updatedAt,
   }) {
     return Category(
       id: id ?? this.id,
@@ -29,6 +32,7 @@ class Category extends Equatable {
       description: description ?? this.description,
       productCount: productCount ?? this.productCount,
       createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 
