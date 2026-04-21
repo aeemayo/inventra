@@ -465,13 +465,13 @@ class _AddEditProductScreenState extends ConsumerState<AddEditProductScreen> {
                             children: [
                               Expanded(
                                   child: _buildWireframeInput(
-                                      label: 'Selling Price (\$)',
+                                      label: 'Selling Price (₦)',
                                       hint: '0.00',
                                       controller: _sellingPriceController)),
                               const SizedBox(width: AppSizes.md),
                               Expanded(
                                   child: _buildWireframeInput(
-                                      label: 'Cost Price (\$)',
+                                      label: 'Cost Price (₦)',
                                       hint: '0.00',
                                       controller: _costPriceController)),
                             ],

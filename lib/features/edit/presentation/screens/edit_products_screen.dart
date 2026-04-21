@@ -61,7 +61,7 @@ class _EditProductsScreenState extends ConsumerState<EditProductsScreen> {
                 decoration: const InputDecoration(
                   labelText: 'Selling Price',
                   hintText: 'e.g. 12.99',
-                  prefixText: '\$ ',
+                  prefixText: '₦ ',
                 ),
               ),
               const SizedBox(height: 12),
@@ -331,7 +331,7 @@ class _EditProductsScreenState extends ConsumerState<EditProductsScreen> {
                           subtitle: Padding(
                             padding: const EdgeInsets.only(top: 6),
                             child: Text(
-                              'Price: \$${product.sellingPrice.toStringAsFixed(2)}\n'
+                              'Price: ₦${product.sellingPrice.toStringAsFixed(2)}\n'
                               'Expiry: ${_formatDate(product.expiryDate).isEmpty ? 'Not set' : _formatDate(product.expiryDate)}',
                             ),
                           ),
