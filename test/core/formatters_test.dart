@@ -5,15 +5,15 @@ void main() {
   group('Formatters', () {
     group('currency', () {
       test('formats basic amounts', () {
-        expect(Formatters.currency(19.99), '\$19.99');
-        expect(Formatters.currency(0), '\$0.00');
-        expect(Formatters.currency(1234.5), '\$1,234.50');
+        expect(Formatters.currency(19.99), '₦19.99');
+        expect(Formatters.currency(0), '₦0.00');
+        expect(Formatters.currency(1234.5), '₦1,234.50');
       });
 
       test('formats compact currency', () {
-        expect(Formatters.compactCurrency(42590), '\$42.6K');
-        expect(Formatters.compactCurrency(1500000), '\$1.5M');
-        expect(Formatters.compactCurrency(500), '\$500.00');
+        expect(Formatters.compactCurrency(42590), '₦42.6K');
+        expect(Formatters.compactCurrency(1500000), '₦1.5M');
+        expect(Formatters.compactCurrency(500), '₦500.00');
       });
     });
 
