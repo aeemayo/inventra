@@ -120,20 +120,6 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen>
     setState(() => _permState = _CameraPermState.granted);
   }
 
-  /// Compute scan window rect using the same formula as _ScanOverlayPainter
-  Rect _computeScanWindow(Size size) {
-    final scanAreaSize = size.width * 0.7;
-    final left = (size.width - scanAreaSize) / 2;
-    final top = (size.height - scanAreaSize) / 2 - 40;
-    // Normalize to 0..1 range as required by MobileScanner
-    return Rect.fromLTWH(
-      left / size.width,
-      top / size.height,
-      scanAreaSize / size.width,
-      scanAreaSize / size.height,
-    );
-  }
-
   void _onBarcodeDetected(BarcodeCapture capture) {
     if (_isProcessing || _selectedIntent == null) return;
     final barcodes = capture.barcodes;
@@ -426,12 +412,15 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen>
           if (_cameraController != null)
             LayoutBuilder(
               builder: (context, constraints) {
-                final size = Size(constraints.maxWidth, constraints.maxHeight);
-                final scanWindow = _computeScanWindow(size);
+                final w = constraints.maxWidth;
+                final h = constraints.maxHeight;
+                final scanAreaSize = w * 0.7;
+                final left = (w - scanAreaSize) / 2;
+                final top = (h - scanAreaSize) / 2 - 40;
                 return MobileScanner(
                   controller: _cameraController!,
+                  scanWindow: Rect.fromLTWH(left, top, scanAreaSize, scanAreaSize),
                   onDetect: _onBarcodeDetected,
-                  scanWindow: scanWindow,
                 );
               },
             ),
