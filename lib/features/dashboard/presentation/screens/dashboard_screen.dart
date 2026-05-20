@@ -369,6 +369,7 @@ class _StatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
+      behavior: HitTestBehavior.opaque,
       child: AppCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
